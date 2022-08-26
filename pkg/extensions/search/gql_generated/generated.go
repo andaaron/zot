@@ -830,11 +830,17 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 var sources = []*ast.Source{
 	{Name: "../schema.graphql", Input: `scalar Time
 
+"""
+Contains the tag of the image and a list of CVEs
+"""
 type CVEResultForImage {
     Tag: String
     CVEList: [CVE]
 }
 
+"""
+Contains various details about the CVE and a list of PackageInfo about the affected packages
+"""
 type CVE {
     Id: String
     Title: String
@@ -843,12 +849,18 @@ type CVE {
     PackageList: [PackageInfo]
 }
 
+"""
+Contains the name of the package, the current installed version and the version where the CVE was fixed
+"""
 type PackageInfo {
     Name: String
     InstalledVersion: String
     FixedVersion: String
 }
 
+"""
+Contains details about the repo: a list of image summaries and a summary of the repo
+"""
 type RepoInfo {
     Images: [ImageSummary]
     Summary: RepoSummary
@@ -856,6 +868,9 @@ type RepoInfo {
 
 # Search results in all repos/images/layers
 # There will be other more structures for more detailed information
+"""
+Search everything. Can search Images, Repos and Layers
+"""
 type GlobalSearchResult {
     Page: PageInfo
     Images: [ImageSummary]
@@ -865,6 +880,9 @@ type GlobalSearchResult {
 
 # Brief on a specific image to be used in queries returning a list of images
 # We define an image as a pairing or a repo and a tag belonging to that repo
+"""
+Contains details about the image
+"""
 type ImageSummary {
     RepoName: String
     Tag: String
@@ -894,6 +912,9 @@ type ImageVulnerabilitySummary {
 }
 
 # Brief on a specific repo to be used in queries returning a list of repos
+"""
+Contains details about the repo
+"""
 type RepoSummary {
     Name: String
     LastUpdated: Time
@@ -910,6 +931,9 @@ type RepoSummary {
 
 # Currently the same as LayerInfo, we can refactor later
 # For detailed information on the layer a ImageListForDigest call can be made
+"""
+Contains details about the layer
+"""
 type LayerSummary {
     Size: String  # Int64 is not supported.
     Digest: String
@@ -941,6 +965,9 @@ type LayerHistory {
     HistoryDescription: HistoryDescription
 }
 
+"""
+Contains details about the supported OS and architecture of the image
+"""
 type OsArch {
     Os: String
     Arch: String
@@ -976,13 +1003,44 @@ input Filter {
 }
 
 type Query {
+    """
+    Returns a CVE list for the image specified in the arugment
+    """
     CVEListForImage(image: String!): CVEResultForImage!
+
+    """
+    Returns a list of images vulnerable to the CVE of the specified ID
+    """
     ImageListForCVE(id: String!): [ImageSummary!]
+
+    """
+    Returns a list of images that are no longer vulnerable to the CVE of the specified ID, from the specified image (repo)
+    """
     ImageListWithCVEFixed(id: String!, image: String!): [ImageSummary!]
+
+    """
+    Returns a list of images which contain the specified digest 
+    """
     ImageListForDigest(id: String!): [ImageSummary!]
+
+    """
+    Returns a list of repos with the newest tag within
+    """
     RepoListWithNewestImage: [RepoSummary!]!  # Newest based on created timestamp
+
+    """
+    Returns all the images from the specified repo
+    """
     ImageList(repo: String!): [ImageSummary!]
+
+    """
+    Returns information about the specified repo
+    """
     ExpandedRepoInfo(repo: String!): RepoInfo!
+
+    """
+    Searches within repos, images, and layers
+    """
     GlobalSearch(query: String!, filter: Filter, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
     DerivedImageList(image: String!): [ImageSummary!]
     BaseImageList(image: String!): [ImageSummary!]
