@@ -211,6 +211,10 @@ func validateConfiguration(config *config.Config) error {
 		return err
 	}
 
+	if err := validateGitHub(config); err != nil {
+		return err
+	}
+
 	if err := validateSync(config); err != nil {
 		return err
 	}
@@ -345,6 +349,13 @@ func applyDefaultValues(config *config.Config, viperInstance *viper.Viper) {
 	if !config.Storage.GC && viperInstance.Get("storage::gcdelay") == nil {
 		config.Storage.GCDelay = 0
 	}
+
+	if config.HTTP.Auth != nil && config.HTTP.Auth.GitHub != nil {
+		if viperInstance.Get("http::auth::github::tokencheckinterval") == nil {
+			// Todo: configure with constant from appropriate package
+			config.HTTP.Auth.GitHub.TokenCheckInterval = 1 * time.Minute
+		}
+	}
 }
 
 func updateDistSpecVersion(config *config.Config) {
@@ -475,6 +486,36 @@ func validateLDAP(config *config.Config) error {
 				Msg("invalid LDAP configuration, missing mandatory key: basedn")
 
 			return errors.ErrLDAPConfig
+		}
+	}
+
+	return nil
+}
+
+func validateGitHub(config *config.Config) error {
+	// GitHub mandatory configuration
+	// Other configuration can have default values
+	if config.HTTP.Auth != nil && config.HTTP.Auth.GitHub != nil {
+		gitHubConfig := config.HTTP.Auth.GitHub
+		if gitHubConfig.ClientID == "" {
+			log.Error().Str("ClientID", gitHubConfig.ClientID).
+				Msg("invalid GitHub auth configuration, missing mandatory key: ClientID")
+
+			return errors.ErrGitHubAuthConfig
+		}
+
+		if gitHubConfig.ClientSecret == "" {
+			log.Error().Str("ClientSecret", gitHubConfig.ClientSecret).
+				Msg("invalid GitHub auth configuration, missing mandatory key: ClientSecret")
+
+			return errors.ErrGitHubAuthConfig
+		}
+
+		if gitHubConfig.CallbackURL == "" {
+			log.Error().Str("CallbackURL", gitHubConfig.CallbackURL).
+				Msg("invalid GitHub auth configuration, missing mandatory key: CallbackURL")
+
+			return errors.ErrGitHubAuthConfig
 		}
 	}
 

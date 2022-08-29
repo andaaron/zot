@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
@@ -13,8 +14,11 @@ import (
 	"time"
 
 	"github.com/chartmuseum/auth"
+	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/endpoints"
 	"zotregistry.io/zot/errors"
 	"zotregistry.io/zot/pkg/api/config"
 )
@@ -28,7 +32,64 @@ func AuthHandler(c *Controller) mux.MiddlewareFunc {
 		return bearerAuthHandler(c)
 	}
 
+	if isGitHubAuthEnabled(c.Config) {
+		return gitHubAuthHandler(c)
+	}
+
 	return basicAuthHandler(c)
+}
+
+func gitHubAuthHandler(ctlr *Controller) mux.MiddlewareFunc {
+	var ghOauthConfig = &oauth2.Config{
+		RedirectURL:  ctlr.Config.HTTP.Auth.GitHub.CallbackURL,
+		ClientID:     ctlr.Config.HTTP.Auth.GitHub.ClientID,
+		ClientSecret: ctlr.Config.HTTP.Auth.GitHub.ClientSecret,
+		Scopes:       []string{"user:email"},
+		Endpoint:     endpoints.GitHub,
+	}
+
+	realm := ctlr.Config.HTTP.Realm
+	if realm == "" {
+		realm = "Authorization Required"
+	}
+
+	wwwAuthenticate := "Bearer realm=" + strconv.Quote(realm)
+	// ToDo check if we need to add other logic in wwwAuthenticate
+
+	delay := ctlr.Config.HTTP.Auth.FailDelay
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if request.Method == http.MethodOptions {
+				response.WriteHeader(http.StatusNoContent)
+
+				return
+			}
+
+			bearerAuth := request.Header.Get("Authorization")
+			ctlr.Log.Info().Str("Authorization", bearerAuth).Msg("Extracted Token GitHub")
+
+			gitHubToken, err := getGitHubToken(request)
+			if err != nil {
+				ctlr.Log.Error().Err(err).Msg("failed to parse authorization header")
+				authFail(response, wwwAuthenticate, delay)
+
+				return
+			}
+			ctlr.Log.Info().Interface("GH token", gitHubToken).Msg("Extracted Token GitHub")
+			// Todo cleanup varible name
+			oauthClient := ghOauthConfig.Client(context.Background(), &oauth2.Token{AccessToken: gitHubToken})
+			gitHubClient := github.NewClient(oauthClient)
+			user, _, err := gitHubClient.Users.Get(context.Background(), "")
+			if err != nil {
+				ctlr.Log.Error().Err(err).Msg("client.Users.Get() faled")
+				authFail(response, wwwAuthenticate, delay)
+			}
+			ctlr.Log.Info().Interface("GH user", user).Msg("Logged in with GitHub")
+
+			next.ServeHTTP(response, request)
+		})
+	}
 }
 
 func bearerAuthHandler(ctlr *Controller) mux.MiddlewareFunc {
@@ -253,11 +314,42 @@ func isBearerAuthEnabled(config *config.Config) bool {
 	return false
 }
 
+func isGitHubAuthEnabled(config *config.Config) bool {
+	if config.HTTP.Auth != nil &&
+		config.HTTP.Auth.GitHub != nil {
+		return true
+	}
+
+	return false
+}
+
 func authFail(w http.ResponseWriter, realm string, delay int) {
 	time.Sleep(time.Duration(delay) * time.Second)
 	w.Header().Set("WWW-Authenticate", realm)
 	w.Header().Set("Content-Type", "application/json")
 	WriteJSON(w, http.StatusUnauthorized, NewErrorList(NewError(UNAUTHORIZED)))
+}
+
+func getGitHubToken(request *http.Request) (string, error) {
+	bearerAuth := request.Header.Get("Authorization")
+
+	if bearerAuth == "" {
+		return "", errors.ErrParsingAuthHeader
+	}
+
+	splitStr := strings.SplitN(bearerAuth, " ", 2) //nolint:gomnd
+	if len(splitStr) != 2 || strings.ToLower(splitStr[0]) != "bearer" {
+		return "", errors.ErrParsingAuthHeader
+	}
+	token := splitStr[1]
+
+	splitStr = strings.SplitN(token, "_", 2)                         //nolint:gomnd
+	if len(splitStr) != 2 || strings.ToLower(splitStr[0]) != "ghp" { // or gho
+		// Todo GitHub specific error for failed authentication,token not valid
+		return "", errors.ErrParsingAuthHeader
+	}
+
+	return token, nil
 }
 
 func getUsernamePasswordBasicAuth(request *http.Request) (string, string, error) {

@@ -23,6 +23,7 @@ var (
 	ErrLDAPEmptyPassphrase     = errors.New("ldap: empty passphrase")
 	ErrLDAPBadConn             = errors.New("ldap: bad connection")
 	ErrLDAPConfig              = errors.New("config: invalid LDAP configuration")
+	ErrGitHubAuthConfig        = errors.New("config: invalid GitHub authentication configuration")
 	ErrCacheRootBucket         = errors.New("cache: unable to create/update root bucket")
 	ErrCacheNoBucket           = errors.New("cache: unable to find bucket")
 	ErrCacheMiss               = errors.New("cache: miss")

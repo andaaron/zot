@@ -42,12 +42,22 @@ type AuthConfig struct {
 	HTPasswd  AuthHTPasswd
 	LDAP      *LDAPConfig
 	Bearer    *BearerConfig
+	GitHub    *GitHubConfig
 }
 
 type BearerConfig struct {
 	Realm   string
 	Service string
 	Cert    string
+}
+
+type GitHubConfig struct {
+	ClientID           string
+	ClientSecret       string
+	AuthURL            string
+	TokenURL           string
+	CallbackURL        string
+	TokenCheckInterval time.Duration
 }
 
 type MethodRatelimitConfig struct {
@@ -159,6 +169,16 @@ func (c *Config) Sanitize() *Config {
 		}
 
 		sanitizedConfig.HTTP.Auth.LDAP.BindPassword = "******"
+	}
+
+	if c.HTTP.Auth != nil && c.HTTP.Auth.GitHub != nil && c.HTTP.Auth.GitHub.ClientSecret != "" {
+		sanitizedConfig.HTTP.Auth.GitHub = &GitHubConfig{}
+
+		if err := deepcopy.Copy(sanitizedConfig.HTTP.Auth.GitHub, c.HTTP.Auth.GitHub); err != nil {
+			panic(err)
+		}
+
+		sanitizedConfig.HTTP.Auth.GitHub.ClientSecret = "******"
 	}
 
 	return sanitizedConfig

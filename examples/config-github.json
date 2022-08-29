@@ -1,0 +1,29 @@
+{
+    "distSpecVersion": "1.0.1-dev",
+    "storage": {
+        "rootDirectory": "/data/hdd/zot"
+    },
+    "http": {
+        "address": "valid.hostname.domain",
+        "port": "8080",
+        "auth": {
+            "github": {
+                "callbackURL": "http://valid.hostname.domain:8080/auth/gh/callback",
+                "clientID":     "client_id_of_zot_server",
+                "clientSecret": "super_private_secret"
+            }
+        }
+    },
+    "log": {
+        "level": "debug",
+        "output": "/data/hdd/zot.log"
+    },
+    "extensions": {
+        "search": {
+            "enable": true,
+            "cve": {
+                "updateInterval": "2h"
+            }
+        }
+    }
+}

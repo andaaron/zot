@@ -55,10 +55,12 @@ require (
 require github.com/open-policy-agent/opa v0.43.0 // indirect
 
 require (
+	github.com/google/go-github v17.0.0+incompatible
 	github.com/notaryproject/notation-go v0.10.0-alpha.3
 	github.com/opencontainers/distribution-spec/specs-go v0.0.0-20220620172159-4ab4752c3b86
 	github.com/sigstore/cosign v1.11.0
 	github.com/swaggo/http-swagger v1.3.3
+	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 )
 
 require (
@@ -358,7 +360,6 @@ require (
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48 // indirect
-	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
