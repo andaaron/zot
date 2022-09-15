@@ -357,10 +357,10 @@ func (r *queryResolver) ExpandedRepoInfo(ctx context.Context, repo string) (*gql
 }
 
 // GlobalSearch is the resolver for the GlobalSearch field.
-func (r *queryResolver) GlobalSearch(ctx context.Context, query string, requestedPage *gql_generated.PageInput) (*gql_generated.GlobalSearchResult, error) {
+func (r *queryResolver) GlobalSearch(ctx context.Context, query string, filter *gql_generated.Filter, requestedPage *gql_generated.PageInput) (*gql_generated.GlobalSearchResult, error) {
 	query = cleanQuerry(query)
 
-	repos, images, layers, err := globalSearch(ctx, query, r.repoDB, requestedPage, r.cveInfo, r.log)
+	repos, images, layers, err := globalSearch(ctx, query, r.repoDB, filter, requestedPage, r.cveInfo, r.log)
 
 	return &gql_generated.GlobalSearchResult{
 		Images: images,

@@ -70,6 +70,7 @@ func (bpt *RepoPageFinder) Page() []RepoMetadata {
 
 	sort.Slice(bpt.pageBuffer, SortFunctions()[bpt.sortBy](bpt.pageBuffer))
 
+	// the offset and limit are calculatd in terms of repos counted
 	start := bpt.offset
 	end := bpt.offset + bpt.limit
 
@@ -143,10 +144,12 @@ func (bpt *ImagePageFinder) Page() []RepoMetadata {
 
 	repoStartIndex := 0
 	tagStartIndex := 0
+
+	// the offset and limit are calculatd in terms of tags counted
 	remainingOffset := bpt.offset
 	remainingLimit := bpt.limit
 
-	// bring cursor to position
+	// bring cursor to position in RepoMeta array
 	for _, drm := range bpt.pageBuffer {
 		if remainingOffset < len(drm.RepoMeta.Tags) {
 			tagStartIndex = remainingOffset
@@ -165,34 +168,33 @@ func (bpt *ImagePageFinder) Page() []RepoMetadata {
 
 	repos := make([]RepoMetadata, 0)
 
-	// finish any partial repo tags (when tagStartIndex is not 0)
-
+	// finish counting remaining tags inside the first repo meta
 	partialTags := map[string]string{}
-	repoMeta := bpt.pageBuffer[repoStartIndex].RepoMeta
+	firstRepoMeta := bpt.pageBuffer[repoStartIndex].RepoMeta
 
-	keys := make([]string, 0, len(repoMeta.Tags))
-	for k := range repoMeta.Tags {
-		keys = append(keys, k)
+	tags := make([]string, 0, len(firstRepoMeta.Tags))
+	for k := range firstRepoMeta.Tags {
+		tags = append(tags, k)
 	}
 
-	sort.Strings(keys)
+	sort.Strings(tags)
 
-	for i := tagStartIndex; i < len(keys); i++ {
-		tag := keys[i]
+	for i := tagStartIndex; i < len(tags); i++ {
+		tag := tags[i]
 
-		partialTags[tag] = repoMeta.Tags[tag]
+		partialTags[tag] = firstRepoMeta.Tags[tag]
 		remainingLimit--
 
 		if remainingLimit == 0 {
-			repoMeta.Tags = partialTags
-			repos = append(repos, repoMeta)
+			firstRepoMeta.Tags = partialTags
+			repos = append(repos, firstRepoMeta)
 
 			return repos
 		}
 	}
 
-	repoMeta.Tags = partialTags
-	repos = append(repos, repoMeta)
+	firstRepoMeta.Tags = partialTags
+	repos = append(repos, firstRepoMeta)
 	repoStartIndex++
 
 	// continue with the remaining repos
@@ -202,14 +204,14 @@ func (bpt *ImagePageFinder) Page() []RepoMetadata {
 		if len(repoMeta.Tags) > remainingLimit {
 			partialTags := map[string]string{}
 
-			keys := make([]string, 0, len(repoMeta.Tags))
+			tags := make([]string, 0, len(repoMeta.Tags))
 			for k := range repoMeta.Tags {
-				keys = append(keys, k)
+				tags = append(tags, k)
 			}
 
-			sort.Strings(keys)
+			sort.Strings(tags)
 
-			for _, tag := range keys {
+			for _, tag := range tags {
 				partialTags[tag] = repoMeta.Tags[tag]
 				remainingLimit--
 

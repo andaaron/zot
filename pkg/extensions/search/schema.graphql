@@ -139,6 +139,12 @@ input PageInput {
     sortBy: SortCriteria
 }
 
+input Filter {
+    Os: String
+    Arch: String
+    HasToBeSigned: Boolean
+}
+
 type Query {
     CVEListForImage(image: String!): CVEResultForImage!
     ImageListForCVE(id: String!): [ImageSummary!]
@@ -147,7 +153,7 @@ type Query {
     RepoListWithNewestImage: [RepoSummary!]!  # Newest based on created timestamp
     ImageList(repo: String!): [ImageSummary!]
     ExpandedRepoInfo(repo: String!): RepoInfo!
-    GlobalSearch(query: String!, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
+    GlobalSearch(query: String!, filter: Filter, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
     DerivedImageList(image: String!): [ImageSummary!]
     BaseImageList(image: String!): [ImageSummary!]
 }

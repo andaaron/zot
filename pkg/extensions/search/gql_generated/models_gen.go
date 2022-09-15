@@ -22,6 +22,12 @@ type CVEResultForImage struct {
 	CVEList []*Cve  `json:"CVEList"`
 }
 
+type Filter struct {
+	Os            *string `json:"Os"`
+	Arch          *string `json:"Arch"`
+	HasToBeSigned *bool   `json:"HasToBeSigned"`
+}
+
 type GlobalSearchResult struct {
 	Page   *PageInfo       `json:"Page"`
 	Images []*ImageSummary `json:"Images"`

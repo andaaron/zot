@@ -20,6 +20,21 @@ import (
 
 var ErrBadCtxFormat = errors.New("type assertion failed")
 
+type BoltDBParameters struct {
+	RootDir string
+}
+
+type BoltDBWrapperFactory struct{}
+
+func (bwf BoltDBWrapperFactory) Create(parameters interface{}) (RepoDB, error) {
+	properParameters, ok := parameters.(BoltDBParameters)
+	if !ok {
+		panic("Failed type assertion")
+	}
+
+	return NewBotDBWrapper(properParameters)
+}
+
 type BoltDBWrapper struct {
 	db  *bolt.DB
 	log log.Logger
@@ -528,15 +543,15 @@ func (bdw BoltDBWrapper) DeleteSignature(manifestDigest string, sigMeta Signatur
 	return err
 }
 
-func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, requestedPage PageInput,
+func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, filter Filter, requestedPage PageInput,
 ) ([]RepoMetadata, map[string]ManifestMetadata, error) {
 	var (
 		foundRepos               = make([]RepoMetadata, 0)
 		foundManifestMetadataMap = make(map[string]ManifestMetadata)
-		paginator                PageFinder
+		pageFinder               PageFinder
 	)
 
-	paginator, err := NewBaseRepoPageFinder(requestedPage.Limit, requestedPage.Offset, requestedPage.SortBy)
+	pageFinder, err := NewBaseRepoPageFinder(requestedPage.Limit, requestedPage.Offset, requestedPage.SortBy)
 	if err != nil {
 		return []RepoMetadata{}, map[string]ManifestMetadata{}, err
 	}
@@ -555,7 +570,7 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, req
 				continue
 			}
 
-			repoMeta := RepoMetadata{}
+			var repoMeta RepoMetadata
 
 			err := json.Unmarshal(repoMetaBlob, &repoMeta)
 			if err != nil {
@@ -564,28 +579,42 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, req
 
 			if score := strings.Index(string(repoName), searchText); score != -1 {
 				var (
-					// sorting specific values that need to be calculated based on all manifests from the repo
+					// specific values used for sorting that need to be calculated based on all manifests from the repo
 					repoDownloads   = 0
 					repoLastUpdated time.Time
+					osSet           = map[string]bool{}
+					archSet         = map[string]bool{}
 				)
 
 				for _, manifestDigest := range repoMeta.Tags {
-					if _, manifestExists := manifestMetadataMap[manifestDigest]; manifestExists {
-						continue
-					}
-
-					manifestMetaBlob := manifestBuck.Get([]byte(manifestDigest))
-					if manifestMetaBlob == nil {
-						return zerr.ErrManifestMetaNotFound
-					}
-
 					var manifestMeta ManifestMetadata
 
-					err := json.Unmarshal(manifestMetaBlob, &manifestMeta)
-					if err != nil {
-						return errors.Wrapf(err, "repodb: error while unmarshaling manifest metadata for digest %s", manifestDigest)
+					manifestMeta, manifestDownloaded := manifestMetadataMap[manifestDigest]
+
+					if !manifestDownloaded {
+						manifestMetaBlob := manifestBuck.Get([]byte(manifestDigest))
+						if manifestMetaBlob == nil {
+							return zerr.ErrManifestMetaNotFound
+						}
+
+						err := json.Unmarshal(manifestMetaBlob, &manifestMeta)
+						if err != nil {
+							return errors.Wrapf(err, "repodb: error while unmarshaling manifest metadata for digest %s", manifestDigest)
+						}
 					}
 
+					// get fields related to filtering
+					var configContent ispec.Image
+
+					err = json.Unmarshal(manifestMeta.ConfigBlob, &configContent)
+					if err != nil {
+						return errors.Wrapf(err, "repodb: error while unmarshaling config content for digest %s", manifestDigest)
+					}
+
+					osSet[configContent.OS] = true
+					archSet[configContent.Architecture] = true
+
+					// get fields related to sorting
 					repoDownloads += manifestMeta.DownloadCount
 
 					imageLastUpdated, err := getImageLastUpdatedTimestamp(manifestMeta.ConfigBlob)
@@ -600,7 +629,17 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, req
 					manifestMetadataMap[manifestDigest] = manifestMeta
 				}
 
-				paginator.Add(DetailedRepoMeta{
+				repoFilterData := FilterData{
+					Os:       getMapKeys(osSet),
+					Arch:     getMapKeys(archSet),
+					IsSigned: false,
+				}
+
+				if !acceptedByFilter(filter, repoFilterData) {
+					continue
+				}
+
+				pageFinder.Add(DetailedRepoMeta{
 					RepoMeta:   repoMeta,
 					Score:      score,
 					Downloads:  repoDownloads,
@@ -609,7 +648,7 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, req
 			}
 		}
 
-		foundRepos = paginator.Page()
+		foundRepos = pageFinder.Page()
 
 		// keep just the manifestMeta we need
 		for _, repoMeta := range foundRepos {
@@ -624,41 +663,21 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, req
 	return foundRepos, foundManifestMetadataMap, err
 }
 
-func getImageLastUpdatedTimestamp(configBlob []byte) (time.Time, error) {
-	var (
-		configContent ispec.Image
-		timeStamp     time.Time
-	)
-
-	err := json.Unmarshal(configBlob, &configContent)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if len(configContent.History) != 0 {
-		timeStamp = *configContent.History[0].Created
-	} else {
-		timeStamp = time.Time{}
-	}
-
-	return timeStamp, nil
-}
-
-func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, requestedPage PageInput,
+func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, filter Filter, requestedPage PageInput,
 ) ([]RepoMetadata, map[string]ManifestMetadata, error) {
 	var (
 		foundRepos               = make([]RepoMetadata, 0)
 		foundManifestMetadataMap = make(map[string]ManifestMetadata)
 
-		paginator PageFinder
+		pageFinder PageFinder
 	)
 
-	paginator, err := NewBaseImagePageFinder(requestedPage.Limit, requestedPage.Offset, requestedPage.SortBy)
+	pageFinder, err := NewBaseImagePageFinder(requestedPage.Limit, requestedPage.Offset, requestedPage.SortBy)
 	if err != nil {
 		return []RepoMetadata{}, map[string]ManifestMetadata{}, err
 	}
 
-	searchRepo, searchTag, err := getRepoTag(searchText)
+	searchedRepo, searchedTag, err := getRepoTag(searchText)
 	if err != nil {
 		return []RepoMetadata{}, map[string]ManifestMetadata{},
 			errors.Wrap(err, "repodb: error while parsing search text, invalid format")
@@ -672,7 +691,7 @@ func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, requ
 			cursor              = repoBuck.Cursor()
 		)
 
-		repoName, repoMetaBlob := cursor.Seek([]byte(searchRepo))
+		repoName, repoMetaBlob := cursor.Seek([]byte(searchedRepo))
 
 		for ; repoName != nil; repoName, repoMetaBlob = cursor.Next() {
 			if ok, err := repoIsUserAvailable(ctx, string(repoName)); !ok || err != nil {
@@ -686,11 +705,11 @@ func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, requ
 				return err
 			}
 
-			if string(repoName) == searchRepo {
+			if string(repoName) == searchedRepo {
 				matchedTags := make(map[string]string)
 				// take all manifestMetas
 				for tag, manifestDigest := range repoMeta.Tags {
-					if !strings.HasPrefix(tag, searchTag) {
+					if !strings.HasPrefix(tag, searchedTag) {
 						continue
 					}
 
@@ -715,18 +734,38 @@ func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, requ
 						return errors.Wrapf(err, "repodb: error while unmashaling manifest metadata for digest %s", manifestDigest)
 					}
 
+					var configContent ispec.Image
+
+					err = json.Unmarshal(manifestMeta.ConfigBlob, &configContent)
+					if err != nil {
+						return errors.Wrapf(err, "repodb: error while unmashaling manifest metadata for digest %s", manifestDigest)
+					}
+
+					imageFilterData := FilterData{
+						Os:       []string{configContent.OS},
+						Arch:     []string{configContent.Architecture},
+						IsSigned: false,
+					}
+
+					if !acceptedByFilter(filter, imageFilterData) {
+						delete(matchedTags, tag)
+						delete(manifestMetadataMap, manifestDigest)
+
+						continue
+					}
+
 					manifestMetadataMap[manifestDigest] = manifestMeta
 				}
 
 				repoMeta.Tags = matchedTags
 
-				paginator.Add(DetailedRepoMeta{
+				pageFinder.Add(DetailedRepoMeta{
 					RepoMeta: repoMeta,
 				})
 			}
 		}
 
-		foundRepos = paginator.Page()
+		foundRepos = pageFinder.Page()
 
 		// keep just the manifestMeta we need
 		for _, repoMeta := range foundRepos {
@@ -741,19 +780,38 @@ func (bdw BoltDBWrapper) SearchTags(ctx context.Context, searchText string, requ
 	return foundRepos, foundManifestMetadataMap, err
 }
 
-func getRepoTag(searchText string) (string, string, error) {
-	const repoTagCount = 2
+func acceptedByFilter(filter Filter, filterData FilterData) bool {
+	if filter.Arch != nil {
+		foundArch := containsString(*filter.Arch, filterData.Arch)
 
-	splitSlice := strings.Split(searchText, ":")
-
-	if len(splitSlice) != repoTagCount {
-		return "", "", errors.New("invalid format for tag search, not following repo:tag")
+		if !foundArch {
+			return false
+		}
 	}
 
-	repo := strings.TrimSpace(splitSlice[0])
-	tag := strings.TrimSpace(splitSlice[1])
+	if filter.Os != nil {
+		foundOs := containsString(*filter.Os, filterData.Os)
 
-	return repo, tag, nil
+		if !foundOs {
+			return false
+		}
+	}
+
+	if filter.HasToBeSigned != nil && *filter.HasToBeSigned != filterData.IsSigned {
+		return false
+	}
+
+	return true
+}
+
+func containsString(str string, strSlice []string) bool {
+	for _, val := range strSlice {
+		if val == str {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (bdw BoltDBWrapper) SearchDigests(ctx context.Context, searchText string, requestedPage PageInput,
@@ -774,21 +832,6 @@ func (bdw BoltDBWrapper) SearchForAscendantImages(ctx context.Context, searchTex
 func (bdw BoltDBWrapper) SearchForDescendantImages(ctx context.Context, searchText string, requestedPage PageInput,
 ) ([]RepoMetadata, map[string]ManifestMetadata, error) {
 	panic("not implemented")
-}
-
-type BoltDBParameters struct {
-	RootDir string
-}
-
-type BoltDBWrapperFactory struct{}
-
-func (bwf BoltDBWrapperFactory) Create(parameters interface{}) (RepoDB, error) {
-	properParameters, ok := parameters.(BoltDBParameters)
-	if !ok {
-		panic("Failed type assertion")
-	}
-
-	return NewBotDBWrapper(properParameters)
 }
 
 func repoIsUserAvailable(ctx context.Context, repoName string) (bool, error) {
@@ -829,4 +872,49 @@ func matchesRepo(globPatterns map[string]bool, repository string) bool {
 	allowed := globPatterns[longestMatchedPattern]
 
 	return allowed
+}
+
+func getRepoTag(searchText string) (string, string, error) {
+	const repoTagCount = 2
+
+	splitSlice := strings.Split(searchText, ":")
+
+	if len(splitSlice) != repoTagCount {
+		return "", "", errors.New("invalid format for tag search, not following repo:tag")
+	}
+
+	repo := strings.TrimSpace(splitSlice[0])
+	tag := strings.TrimSpace(splitSlice[1])
+
+	return repo, tag, nil
+}
+
+func getMapKeys[K comparable, V any](genericMap map[K]V) []K {
+	keys := make([]K, 0, len(genericMap))
+
+	for k := range genericMap {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func getImageLastUpdatedTimestamp(configBlob []byte) (time.Time, error) {
+	var (
+		configContent ispec.Image
+		timeStamp     time.Time
+	)
+
+	err := json.Unmarshal(configBlob, &configContent)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if len(configContent.History) != 0 {
+		timeStamp = *configContent.History[0].Created
+	} else {
+		timeStamp = time.Time{}
+	}
+
+	return timeStamp, nil
 }

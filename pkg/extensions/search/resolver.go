@@ -13,8 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql"
-	glob "github.com/bmatcuk/doublestar/v4"            // nolint:gci
+	"github.com/99designs/gqlgen/graphql"              // nolint:gci
 	v1 "github.com/google/go-containerregistry/pkg/v1" // nolint:gci
 	godigest "github.com/opencontainers/go-digest"
 	"zotregistry.io/zot/pkg/storage/repodb"
@@ -26,7 +25,6 @@ import (
 	digestinfo "zotregistry.io/zot/pkg/extensions/search/digest"
 	"zotregistry.io/zot/pkg/extensions/search/gql_generated"
 	"zotregistry.io/zot/pkg/log" // nolint: gci
-	localCtx "zotregistry.io/zot/pkg/requestcontext"
 	"zotregistry.io/zot/pkg/storage"
 ) // THIS CODE IS A STARTING POINT ONLY. IT WILL NOT BE UPDATED WITH SCHEMA CHANGES.
 
@@ -306,7 +304,7 @@ func cleanQuerry(query string) string {
 	return query
 }
 
-func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB,
+func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filter *gql_generated.Filter,
 	requestedPage *gql_generated.PageInput, cveInfo cveinfo.CveInfo, log log.Logger,
 ) ([]*gql_generated.RepoSummary, []*gql_generated.ImageSummary, []*gql_generated.LayerSummary, error,
 ) {
@@ -319,26 +317,20 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB,
 	}
 
 	if searchingForRepos(query) {
-		limit := 0
-		if requestedPage.Limit != nil {
-			limit = *requestedPage.Limit
+		pageInput := repodb.PageInput{
+			Limit:  safeDerefferencing(requestedPage.Limit, 0),
+			Offset: safeDerefferencing(requestedPage.Offset, 0),
+			SortBy: repodb.SortCriteria(
+				safeDerefferencing(requestedPage.SortBy, gql_generated.SortCriteriaRelevance),
+			),
+		}
+		filter := repodb.Filter{
+			Os:            filter.Os,
+			Arch:          filter.Arch,
+			HasToBeSigned: filter.HasToBeSigned,
 		}
 
-		offset := 0
-		if requestedPage.Offset != nil {
-			offset = *requestedPage.Offset
-		}
-
-		sortBy := gql_generated.SortCriteriaRelevance
-		if requestedPage.SortBy != nil {
-			sortBy = *requestedPage.SortBy
-		}
-
-		reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, query, repodb.PageInput{
-			Limit:  limit,
-			Offset: offset,
-			SortBy: repodb.SortCriteria(sortBy),
-		})
+		reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, query, filter, pageInput)
 		if err != nil {
 			return []*gql_generated.RepoSummary{}, []*gql_generated.ImageSummary{}, []*gql_generated.LayerSummary{}, err
 		}
@@ -350,25 +342,20 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB,
 			repos = append(repos, repoSummary)
 		}
 	} else { // search for images
-		limit := 0
-		if requestedPage.Limit != nil {
-			limit = *requestedPage.Limit
+		pageInput := repodb.PageInput{
+			Limit:  safeDerefferencing(requestedPage.Limit, 0),
+			Offset: safeDerefferencing(requestedPage.Offset, 0),
+			SortBy: repodb.SortCriteria(
+				safeDerefferencing(requestedPage.SortBy, gql_generated.SortCriteriaRelevance),
+			),
+		}
+		filter := repodb.Filter{
+			Os:            filter.Os,
+			Arch:          filter.Arch,
+			HasToBeSigned: filter.HasToBeSigned,
 		}
 
-		offset := 0
-		if requestedPage.Offset != nil {
-			offset = *requestedPage.Offset
-		}
-
-		sortBy := gql_generated.SortCriteriaRelevance
-		if requestedPage.SortBy != nil {
-			sortBy = *requestedPage.SortBy
-		}
-		reposMeta, manifestMetaMap, err := repoDB.SearchTags(ctx, query, repodb.PageInput{
-			Limit:  limit,
-			Offset: offset,
-			SortBy: repodb.SortCriteria(sortBy),
-		})
+		reposMeta, manifestMetaMap, err := repoDB.SearchTags(ctx, query, filter, pageInput)
 		if err != nil {
 			return []*gql_generated.RepoSummary{}, []*gql_generated.ImageSummary{}, []*gql_generated.LayerSummary{}, err
 		}
@@ -381,6 +368,14 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB,
 	}
 
 	return repos, images, layers, nil
+}
+
+func safeDerefferencing[T any](pointer *T, defaultVal T) T {
+	if pointer != nil {
+		return *pointer
+	}
+
+	return defaultVal
 }
 
 func RepoMeta2ImageSummaries(ctx context.Context, repoMeta repodb.RepoMetadata,
@@ -506,7 +501,7 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 		repoDownloadCount        = 0
 		repoName                 = repoMeta.Name
 
-		// map used to keep track of all blobs of a repo without dublicates
+		// map used to keep track of all blobs of a repo without dublicates as
 		// some images may have the same layers
 		repoBlob2Size = make(map[string]int64, 10)
 
@@ -549,24 +544,23 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 		}
 
 		var (
-			tag          = tag
-			isSigned     = len(manifestMetaMap[manifestDigest].Signatures) > 0
-			configDigest = manifestContent.Config.Digest.String()
-			configSize   = manifestContent.Config.Size
-			opSys        = configContent.OS
-			arch         = configContent.Architecture
-			osArch       = gql_generated.OsArch{Os: &opSys, Arch: &arch}
-
+			tag              = tag
+			isSigned         = len(manifestMetaMap[manifestDigest].Signatures) > 0
+			configDigest     = manifestContent.Config.Digest.String()
+			configSize       = manifestContent.Config.Size
+			opSys            = configContent.OS
+			arch             = configContent.Architecture
+			osArch           = gql_generated.OsArch{Os: &opSys, Arch: &arch}
 			imageLastUpdated = getImageLastUpdated(configContent)
+			downloadCount    = manifestMetaMap[manifestDigest].DownloadCount
+			manifestDigest   = manifestDigest
 
 			size = updateRepoBlobsMap(
 				manifestDigest, int64(len(manifestMetaMap[manifestDigest].ManifestBlob)),
 				configDigest, configSize,
 				manifestContent.Layers,
 				repoBlob2Size)
-			imageSize      = strconv.FormatInt(size, 10)
-			downloadCount  = manifestMetaMap[manifestDigest].DownloadCount
-			manifestDigest = manifestDigest
+			imageSize = strconv.FormatInt(size, 10)
 		)
 
 		annotations := common.GetAnnotations(manifestContent.Annotations, configContent.Config.Labels)
@@ -911,48 +905,4 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	}
 
 	return imageInfo
-}
-
-// returns either a user has or not rights on 'repository'.
-func matchesRepo(globPatterns map[string]bool, repository string) bool {
-	var longestMatchedPattern string
-
-	// because of the longest path matching rule, we need to check all patterns from config
-	for pattern := range globPatterns {
-		matched, err := glob.Match(pattern, repository)
-		if err == nil {
-			if matched && len(pattern) > len(longestMatchedPattern) {
-				longestMatchedPattern = pattern
-			}
-		}
-	}
-
-	allowed := globPatterns[longestMatchedPattern]
-
-	return allowed
-}
-
-// get passed context from authzHandler and filter out repos based on permissions.
-func userAvailableRepos(ctx context.Context, repoList []string) ([]string, error) {
-	var availableRepos []string
-
-	authzCtxKey := localCtx.GetContextKey()
-	if authCtx := ctx.Value(authzCtxKey); authCtx != nil {
-		acCtx, ok := authCtx.(localCtx.AccessControlContext)
-		if !ok {
-			err := ErrBadCtxFormat
-
-			return []string{}, err
-		}
-
-		for _, r := range repoList {
-			if acCtx.IsAdmin || matchesRepo(acCtx.GlobPatterns, r) {
-				availableRepos = append(availableRepos, r)
-			}
-		}
-	} else {
-		availableRepos = repoList
-	}
-
-	return availableRepos, nil
 }

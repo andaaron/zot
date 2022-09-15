@@ -7,31 +7,50 @@ import (
 )
 
 type RepoDBMock struct {
-	SetRepoDescriptionFn  func(repo, description string) error
-	IncrementRepoStarsFn  func(repo string) error
-	DecrementRepoStarsFn  func(repo string) error
-	GetRepoStarsFn        func(repo string) (int, error)
-	SetRepoLogoFn         func(repo string, logoPath string) error
-	SetRepoTagFn          func(repo string, tag string, manifestDigest string) error
-	DeleteRepoTagFn       func(repo string, tag string) error
-	GetRepoMetaFn         func(repo string) (repodb.RepoMetadata, error)
+	SetRepoDescriptionFn func(repo, description string) error
+
+	IncrementRepoStarsFn func(repo string) error
+
+	DecrementRepoStarsFn func(repo string) error
+
+	GetRepoStarsFn func(repo string) (int, error)
+
+	SetRepoLogoFn func(repo string, logoPath string) error
+
+	SetRepoTagFn func(repo string, tag string, manifestDigest string) error
+
+	DeleteRepoTagFn func(repo string, tag string) error
+
+	GetRepoMetaFn func(repo string) (repodb.RepoMetadata, error)
+
 	GetMultipleRepoMetaFn func(ctx context.Context, filter func(repoMeta repodb.RepoMetadata) bool,
 		requestedPage repodb.PageInput) ([]repodb.RepoMetadata, error)
-	GetManifestMetaFn            func(manifestDigest string) (repodb.ManifestMetadata, error)
-	SetManifestMetaFn            func(manifestDigest string, mm repodb.ManifestMetadata) error
+
+	GetManifestMetaFn func(manifestDigest string) (repodb.ManifestMetadata, error)
+
+	SetManifestMetaFn func(manifestDigest string, mm repodb.ManifestMetadata) error
+
 	IncrementManifestDownloadsFn func(manifestDigest string) error
-	AddManifestSignatureFn       func(manifestDigest string, sm repodb.SignatureMetadata) error
-	DeleteSignatureFn            func(manifestDigest string, sm repodb.SignatureMetadata) error
-	SearchReposFn                func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
+
+	AddManifestSignatureFn func(manifestDigest string, sm repodb.SignatureMetadata) error
+
+	DeleteSignatureFn func(manifestDigest string, sm repodb.SignatureMetadata) error
+
+	SearchReposFn func(ctx context.Context, searchText string, filter repodb.Filter, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
-	SearchTagsFn func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
+
+	SearchTagsFn func(ctx context.Context, searchText string, filter repodb.Filter, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
+
 	SearchDigestsFn func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
+
 	SearchLayersFn func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
+
 	SearchForAscendantImagesFn func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
+
 	SearchForDescendantImagesFn func(ctx context.Context, searchText string, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
 }
@@ -150,19 +169,21 @@ func (sdm RepoDBMock) DeleteSignature(manifestDigest string, sm repodb.Signature
 	return nil
 }
 
-func (sdm RepoDBMock) SearchRepos(ctx context.Context, searchText string, requestedPage repodb.PageInput,
+func (sdm RepoDBMock) SearchRepos(ctx context.Context, searchText string, filter repodb.Filter,
+	requestedPage repodb.PageInput,
 ) ([]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error) {
 	if sdm.SearchReposFn != nil {
-		return sdm.SearchReposFn(ctx, searchText, requestedPage)
+		return sdm.SearchReposFn(ctx, searchText, filter, requestedPage)
 	}
 
 	return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, nil
 }
 
-func (sdm RepoDBMock) SearchTags(ctx context.Context, searchText string, requestedPage repodb.PageInput,
+func (sdm RepoDBMock) SearchTags(ctx context.Context, searchText string, filter repodb.Filter,
+	requestedPage repodb.PageInput,
 ) ([]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error) {
 	if sdm.SearchTagsFn != nil {
-		return sdm.SearchTagsFn(ctx, searchText, requestedPage)
+		return sdm.SearchTagsFn(ctx, searchText, filter, requestedPage)
 	}
 
 	return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, nil

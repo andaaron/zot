@@ -4,6 +4,9 @@ import (
 	"time"
 )
 
+// DetailedRepoMeta is a auxiliary structure used for sorting RepoMeta arrays by information
+// that's not directly available in the RepoMetadata structure (ex. that needs to be calculated
+// by iterating the manifests, etc.)
 type DetailedRepoMeta struct {
 	RepoMeta   RepoMetadata
 	Score      int

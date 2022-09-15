@@ -55,11 +55,11 @@ type RepoDB interface {
 	DeleteSignature(manifestDigest string, sm SignatureMetadata) error
 
 	// SearchRepos searches for repos given a search string
-	SearchRepos(ctx context.Context, searchText string, requestedPage PageInput) (
+	SearchRepos(ctx context.Context, searchText string, filter Filter, requestedPage PageInput) (
 		[]RepoMetadata, map[string]ManifestMetadata, error)
 
 	// SearchTags searches for images(repo:tag) given a search string
-	SearchTags(ctx context.Context, searchText string, requestedPage PageInput) (
+	SearchTags(ctx context.Context, searchText string, filter Filter, requestedPage PageInput) (
 		[]RepoMetadata, map[string]ManifestMetadata, error)
 
 	// SearchDigests searches for digests given a search string
@@ -119,4 +119,16 @@ type PageInput struct {
 	Limit  int
 	Offset int
 	SortBy SortCriteria
+}
+
+type Filter struct {
+	Os            *string
+	Arch          *string
+	HasToBeSigned *bool
+}
+
+type FilterData struct {
+	Os       []string
+	Arch     []string
+	IsSigned bool
 }

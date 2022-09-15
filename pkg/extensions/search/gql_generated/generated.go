@@ -133,7 +133,7 @@ type ComplexityRoot struct {
 		CVEListForImage         func(childComplexity int, image string) int
 		DerivedImageList        func(childComplexity int, image string) int
 		ExpandedRepoInfo        func(childComplexity int, repo string) int
-		GlobalSearch            func(childComplexity int, query string, requestedPage *PageInput) int
+		GlobalSearch            func(childComplexity int, query string, filter *Filter, requestedPage *PageInput) int
 		ImageList               func(childComplexity int, repo string) int
 		ImageListForCve         func(childComplexity int, id string) int
 		ImageListForDigest      func(childComplexity int, id string) int
@@ -169,7 +169,7 @@ type QueryResolver interface {
 	RepoListWithNewestImage(ctx context.Context) ([]*RepoSummary, error)
 	ImageList(ctx context.Context, repo string) ([]*ImageSummary, error)
 	ExpandedRepoInfo(ctx context.Context, repo string) (*RepoInfo, error)
-	GlobalSearch(ctx context.Context, query string, requestedPage *PageInput) (*GlobalSearchResult, error)
+	GlobalSearch(ctx context.Context, query string, filter *Filter, requestedPage *PageInput) (*GlobalSearchResult, error)
 	DerivedImageList(ctx context.Context, image string) ([]*ImageSummary, error)
 	BaseImageList(ctx context.Context, image string) ([]*ImageSummary, error)
 }
@@ -611,7 +611,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.GlobalSearch(childComplexity, args["query"].(string), args["requestedPage"].(*PageInput)), true
+		return e.complexity.Query.GlobalSearch(childComplexity, args["query"].(string), args["filter"].(*Filter), args["requestedPage"].(*PageInput)), true
 
 	case "Query.ImageList":
 		if e.complexity.Query.ImageList == nil {
@@ -767,6 +767,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputFilter,
 		ec.unmarshalInputPageInput,
 	)
 	first := true
@@ -954,6 +955,12 @@ input PageInput {
     sortBy: SortCriteria
 }
 
+input Filter {
+    Os: String
+    Arch: String
+    HasToBeSigned: Boolean
+}
+
 type Query {
     CVEListForImage(image: String!): CVEResultForImage!
     ImageListForCVE(id: String!): [ImageSummary!]
@@ -962,7 +969,7 @@ type Query {
     RepoListWithNewestImage: [RepoSummary!]!  # Newest based on created timestamp
     ImageList(repo: String!): [ImageSummary!]
     ExpandedRepoInfo(repo: String!): RepoInfo!
-    GlobalSearch(query: String!, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
+    GlobalSearch(query: String!, filter: Filter, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
     DerivedImageList(image: String!): [ImageSummary!]
     BaseImageList(image: String!): [ImageSummary!]
 }
@@ -1046,15 +1053,24 @@ func (ec *executionContext) field_Query_GlobalSearch_args(ctx context.Context, r
 		}
 	}
 	args["query"] = arg0
-	var arg1 *PageInput
-	if tmp, ok := rawArgs["requestedPage"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestedPage"))
-		arg1, err = ec.unmarshalOPageInput2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐPageInput(ctx, tmp)
+	var arg1 *Filter
+	if tmp, ok := rawArgs["filter"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("filter"))
+		arg1, err = ec.unmarshalOFilter2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐFilter(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["requestedPage"] = arg1
+	args["filter"] = arg1
+	var arg2 *PageInput
+	if tmp, ok := rawArgs["requestedPage"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestedPage"))
+		arg2, err = ec.unmarshalOPageInput2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐPageInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["requestedPage"] = arg2
 	return args, nil
 }
 
@@ -4045,7 +4061,7 @@ func (ec *executionContext) _Query_GlobalSearch(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GlobalSearch(rctx, fc.Args["query"].(string), fc.Args["requestedPage"].(*PageInput))
+		return ec.resolvers.Query().GlobalSearch(rctx, fc.Args["query"].(string), fc.Args["filter"].(*Filter), fc.Args["requestedPage"].(*PageInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -6833,6 +6849,50 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputFilter(ctx context.Context, obj interface{}) (Filter, error) {
+	var it Filter
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"Os", "Arch", "HasToBeSigned"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "Os":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("Os"))
+			it.Os, err = ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "Arch":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("Arch"))
+			it.Arch, err = ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "HasToBeSigned":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("HasToBeSigned"))
+			it.HasToBeSigned, err = ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPageInput(ctx context.Context, obj interface{}) (PageInput, error) {
 	var it PageInput
 	asMap := map[string]interface{}{}
@@ -8469,6 +8529,14 @@ func (ec *executionContext) marshalOCVE2ᚖzotregistryᚗioᚋzotᚋpkgᚋextens
 		return graphql.Null
 	}
 	return ec._CVE(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOFilter2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐFilter(ctx context.Context, v interface{}) (*Filter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOHistoryDescription2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐHistoryDescription(ctx context.Context, sel ast.SelectionSet, v *HistoryDescription) graphql.Marshaler {
