@@ -84,7 +84,9 @@ func (r *queryResolver) getImageListForDigest(repoList []string, digest string) 
 				return []*gql_generated.ImageSummary{}, err
 			}
 
-			imageInfo := BuildImageInfo(repo, imageInfo.Tag, imageInfo.Digest, imageInfo.Manifest, imageConfig)
+			isSigned := olu.CheckManifestSignature(repo, imageInfo.Digest)
+			imageInfo := BuildImageInfo(repo, imageInfo.Tag, imageInfo.Digest,
+				imageInfo.Manifest, imageConfig, isSigned)
 
 			imgResultForDigest = append(imgResultForDigest, imageInfo)
 		}
@@ -774,7 +776,9 @@ func (r *queryResolver) getImageList(store storage.ImageStore, imageName string)
 					return results, err
 				}
 
-				imageInfo := BuildImageInfo(repo, tag.Name, digest, manifest, imageConfig)
+				isSigned := layoutUtils.CheckManifestSignature(repo, digest)
+				imageInfo := BuildImageInfo(repo, tag.Name, digest, manifest,
+					imageConfig, isSigned)
 
 				results = append(results, imageInfo)
 			}
@@ -789,16 +793,20 @@ func (r *queryResolver) getImageList(store storage.ImageStore, imageName string)
 }
 
 func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
-	manifest v1.Manifest, imageConfig ispec.Image,
+	manifest v1.Manifest, imageConfig ispec.Image, isSigned bool,
 ) *gql_generated.ImageSummary {
 	layers := []*gql_generated.LayerSummary{}
 	size := int64(0)
-
 	log := log.NewLogger("debug", "")
-
 	allHistory := []*gql_generated.LayerHistory{}
-
 	formattedManifestDigest := manifestDigest.Hex()
+	annotations := common.GetAnnotations(manifest.Annotations, imageConfig.Config.Labels)
+
+	lastUpdated := imageConfig.Created
+
+	if lastUpdated == nil && len(imageConfig.History) > 0 {
+		lastUpdated = imageConfig.History[len(imageConfig.History)-1].Created
+	}
 
 	history := imageConfig.History
 	if len(history) == 0 {
@@ -826,13 +834,26 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 		formattedSize := strconv.FormatInt(size, 10)
 
 		imageInfo := &gql_generated.ImageSummary{
-			RepoName:     &repo,
-			Tag:          &tag,
-			Digest:       &formattedManifestDigest,
-			ConfigDigest: &manifest.Config.Digest.Hex,
-			Size:         &formattedSize,
-			Layers:       layers,
-			History:      []*gql_generated.LayerHistory{},
+			RepoName:      &repo,
+			Tag:           &tag,
+			Digest:        &formattedManifestDigest,
+			ConfigDigest:  &manifest.Config.Digest.Hex,
+			Size:          &formattedSize,
+			Layers:        layers,
+			History:       allHistory,
+			Vendor:        &annotations.Vendor,
+			Description:   &annotations.Description,
+			Title:         &annotations.Title,
+			Documentation: &annotations.Documentation,
+			Licenses:      &annotations.Licenses,
+			Labels:        &annotations.Labels,
+			Source:        &annotations.Source,
+			LastUpdated:   lastUpdated,
+			IsSigned:      &isSigned,
+			Platform: &gql_generated.OsArch{
+				Os:   &imageConfig.OS,
+				Arch: &imageConfig.Architecture,
+			},
 		}
 
 		return imageInfo
@@ -862,13 +883,26 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 			log.Error().Err(ErrBadLayerCount).Msg("error on creating layer history for ImageSummary")
 
 			return &gql_generated.ImageSummary{
-				RepoName:     &repo,
-				Tag:          &tag,
-				Digest:       &formattedManifestDigest,
-				ConfigDigest: &manifest.Config.Digest.Hex,
-				Size:         &formattedSize,
-				Layers:       layers,
-				History:      allHistory,
+				RepoName:      &repo,
+				Tag:           &tag,
+				Digest:        &formattedManifestDigest,
+				ConfigDigest:  &manifest.Config.Digest.Hex,
+				Size:          &formattedSize,
+				Layers:        layers,
+				History:       allHistory,
+				Vendor:        &annotations.Vendor,
+				Description:   &annotations.Description,
+				Title:         &annotations.Title,
+				Documentation: &annotations.Documentation,
+				Licenses:      &annotations.Licenses,
+				Labels:        &annotations.Labels,
+				Source:        &annotations.Source,
+				LastUpdated:   lastUpdated,
+				IsSigned:      &isSigned,
+				Platform: &gql_generated.OsArch{
+					Os:   &imageConfig.OS,
+					Arch: &imageConfig.Architecture,
+				},
 			}
 		}
 
@@ -894,13 +928,26 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	formattedSize := strconv.FormatInt(size, 10)
 
 	imageInfo := &gql_generated.ImageSummary{
-		RepoName:     &repo,
-		Tag:          &tag,
-		Digest:       &formattedManifestDigest,
-		ConfigDigest: &manifest.Config.Digest.Hex,
-		Size:         &formattedSize,
-		Layers:       layers,
-		History:      allHistory,
+		RepoName:      &repo,
+		Tag:           &tag,
+		Digest:        &formattedManifestDigest,
+		ConfigDigest:  &manifest.Config.Digest.Hex,
+		Size:          &formattedSize,
+		Layers:        layers,
+		History:       allHistory,
+		Vendor:        &annotations.Vendor,
+		Description:   &annotations.Description,
+		Title:         &annotations.Title,
+		Documentation: &annotations.Documentation,
+		Licenses:      &annotations.Licenses,
+		Labels:        &annotations.Labels,
+		Source:        &annotations.Source,
+		LastUpdated:   lastUpdated,
+		IsSigned:      &isSigned,
+		Platform: &gql_generated.OsArch{
+			Os:   &imageConfig.OS,
+			Arch: &imageConfig.Architecture,
+		},
 	}
 
 	return imageInfo
