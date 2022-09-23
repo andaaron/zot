@@ -5,7 +5,6 @@ package search
 
 import (
 	"context"
-	"fmt"
 
 	godigest "github.com/opencontainers/go-digest"
 	"zotregistry.io/zot/pkg/extensions/search/common"
@@ -361,32 +360,7 @@ func (r *queryResolver) ExpandedRepoInfo(ctx context.Context, repo string) (*gql
 func (r *queryResolver) GlobalSearch(ctx context.Context, query string, requestedPage *gql_generated.PageInput) (*gql_generated.GlobalSearchResult, error) {
 	query = cleanQuerry(query)
 
-<<<<<<< HEAD
-	var name, tag string
-
-	_, err := fmt.Sscanf(query, "%s %s", &name, &tag)
-	if err != nil {
-		name = query
-	}
-
-	repoList, err := defaultStore.GetRepositories()
-	if err != nil {
-		r.log.Error().Err(err).Msg("unable to search repositories")
-
-		return &gql_generated.GlobalSearchResult{}, err
-	}
-
-	availableRepos, err := userAvailableRepos(ctx, repoList)
-	if err != nil {
-		r.log.Error().Err(err).Msg("unable to filter user available repositories")
-
-		return &gql_generated.GlobalSearchResult{}, err
-	}
-
-	repos, images, layers := globalSearch(availableRepos, name, tag, olu, r.cveInfo, r.log)
-=======
-	repos, images, layers, err := globalSearch(ctx, query, r.repoDB, requestedPage, r.log)
->>>>>>> e3cb60b (boltdb query logic)
+	repos, images, layers, err := globalSearch(ctx, query, r.repoDB, requestedPage, r.cveInfo, r.log)
 
 	return &gql_generated.GlobalSearchResult{
 		Images: images,

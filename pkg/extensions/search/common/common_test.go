@@ -26,6 +26,7 @@ import (
 	artifactspec "github.com/oras-project/artifacts-spec/specs-go/v1"
 	. "github.com/smartystreets/goconvey/convey"
 	"gopkg.in/resty.v1"
+	zerr "zotregistry.io/zot/errors"
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"

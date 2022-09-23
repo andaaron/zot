@@ -72,7 +72,6 @@ type ComplexityRoot struct {
 	}
 
 	ImageSummary struct {
-<<<<<<< HEAD
 		ConfigDigest    func(childComplexity int) int
 		Description     func(childComplexity int) int
 		Digest          func(childComplexity int) int
@@ -103,26 +102,6 @@ type ComplexityRoot struct {
 	LayerHistory struct {
 		HistoryDescription func(childComplexity int) int
 		Layer              func(childComplexity int) int
-=======
-		ConfigDigest  func(childComplexity int) int
-		Description   func(childComplexity int) int
-		Digest        func(childComplexity int) int
-		Documentation func(childComplexity int) int
-		DownloadCount func(childComplexity int) int
-		IsSigned      func(childComplexity int) int
-		Labels        func(childComplexity int) int
-		LastUpdated   func(childComplexity int) int
-		Layers        func(childComplexity int) int
-		Licenses      func(childComplexity int) int
-		Platform      func(childComplexity int) int
-		RepoName      func(childComplexity int) int
-		Score         func(childComplexity int) int
-		Size          func(childComplexity int) int
-		Source        func(childComplexity int) int
-		Tag           func(childComplexity int) int
-		Title         func(childComplexity int) int
-		Vendor        func(childComplexity int) int
->>>>>>> e3cb60b (boltdb query logic)
 	}
 
 	LayerSummary struct {
@@ -546,19 +525,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PackageInfo.Name(childComplexity), true
 
-<<<<<<< HEAD
-	case "Query.BaseImageList":
-		if e.complexity.Query.BaseImageList == nil {
-			break
-		}
-
-		args, err := ec.field_Query_BaseImageList_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.BaseImageList(childComplexity, args["image"].(string)), true
-=======
 	case "PageInfo.NextPage":
 		if e.complexity.PageInfo.NextPage == nil {
 			break
@@ -586,7 +552,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.PageInfo.PreviousPage(childComplexity), true
->>>>>>> e3cb60b (boltdb query logic)
+
+	case "Query.BaseImageList":
+		if e.complexity.Query.BaseImageList == nil {
+			break
+		}
+
+		args, err := ec.field_Query_BaseImageList_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.BaseImageList(childComplexity, args["image"].(string)), true
 
 	case "Query.CVEListForImage":
 		if e.complexity.Query.CVEListForImage == nil {
@@ -890,7 +867,6 @@ type ImageSummary {
     Licenses: String  #  The value of the annotation if present, 'unknown' otherwise).
     Labels: String
     Title: String
-<<<<<<< HEAD
     Source: String
     Documentation: String
     History: [LayerHistory]
@@ -900,10 +876,6 @@ type ImageSummary {
 type ImageVulnerabilitySummary {
     MaxSeverity: String
     Count: Int
-=======
-	Source: String
-	Documentation: String
->>>>>>> e3cb60b (boltdb query logic)
 }
 
 # Brief on a specific repo to be used in queries returning a list of repos
@@ -993,7 +965,8 @@ type Query {
     GlobalSearch(query: String!, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
     DerivedImageList(image: String!): [ImageSummary!]
     BaseImageList(image: String!): [ImageSummary!]
-}`, BuiltIn: false},
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -1637,13 +1610,10 @@ func (ec *executionContext) fieldContext_GlobalSearchResult_Images(ctx context.C
 				return ec.fieldContext_ImageSummary_Source(ctx, field)
 			case "Documentation":
 				return ec.fieldContext_ImageSummary_Documentation(ctx, field)
-<<<<<<< HEAD
 			case "History":
 				return ec.fieldContext_ImageSummary_History(ctx, field)
 			case "Vulnerabilities":
 				return ec.fieldContext_ImageSummary_Vulnerabilities(ctx, field)
-=======
->>>>>>> e3cb60b (boltdb query logic)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ImageSummary", field.Name)
 		},
@@ -2722,7 +2692,6 @@ func (ec *executionContext) fieldContext_ImageSummary_Documentation(ctx context.
 	return fc, nil
 }
 
-<<<<<<< HEAD
 func (ec *executionContext) _ImageSummary_History(ctx context.Context, field graphql.CollectedField, obj *ImageSummary) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ImageSummary_History(ctx, field)
 	if err != nil {
@@ -3001,8 +2970,6 @@ func (ec *executionContext) fieldContext_LayerHistory_HistoryDescription(ctx con
 	return fc, nil
 }
 
-=======
->>>>>>> e3cb60b (boltdb query logic)
 func (ec *executionContext) _LayerSummary_Size(ctx context.Context, field graphql.CollectedField, obj *LayerSummary) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_LayerSummary_Size(ctx, field)
 	if err != nil {
@@ -3631,13 +3598,10 @@ func (ec *executionContext) fieldContext_Query_ImageListForCVE(ctx context.Conte
 				return ec.fieldContext_ImageSummary_Source(ctx, field)
 			case "Documentation":
 				return ec.fieldContext_ImageSummary_Documentation(ctx, field)
-<<<<<<< HEAD
 			case "History":
 				return ec.fieldContext_ImageSummary_History(ctx, field)
 			case "Vulnerabilities":
 				return ec.fieldContext_ImageSummary_Vulnerabilities(ctx, field)
-=======
->>>>>>> e3cb60b (boltdb query logic)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ImageSummary", field.Name)
 		},
@@ -4206,6 +4170,8 @@ func (ec *executionContext) fieldContext_Query_DerivedImageList(ctx context.Cont
 				return ec.fieldContext_ImageSummary_Documentation(ctx, field)
 			case "History":
 				return ec.fieldContext_ImageSummary_History(ctx, field)
+			case "Vulnerabilities":
+				return ec.fieldContext_ImageSummary_Vulnerabilities(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ImageSummary", field.Name)
 		},

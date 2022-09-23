@@ -163,12 +163,6 @@ func GetCategories(labels map[string]string) string {
 	return categories
 }
 
-func GetLicenses(annotations map[string]string) string {
-	licenses := annotations[ispec.AnnotationLicenses]
-
-	return licenses
-}
-
 func GetAnnotations(annotations, labels map[string]string) ImageAnnotations {
 	description := GetDescription(annotations)
 	if description == "" {
