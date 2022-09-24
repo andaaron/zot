@@ -128,8 +128,9 @@ func repoListWithNewestImage(
 			continue
 		}
 
-		repoPlatforms := make([]*gql_generated.OsArch, 0)
-		repoVendors := make([]*string, 0, len(manifests))
+		repoVendorsSet := make(map[string]bool, len(manifests))
+		repoPlatformsSet := make(map[string]*gql_generated.OsArch, len(manifests))
+
 		repoName := repo
 
 		var lastUpdatedImageSummary gql_generated.ImageSummary
@@ -175,17 +176,23 @@ func repoListWithNewestImage(
 				continue
 			}
 
-			os, arch := olu.GetImagePlatform(imageConfigInfo)
+			opSys, arch := olu.GetImagePlatform(imageConfigInfo)
 			osArch := &gql_generated.OsArch{
-				Os:   &os,
+				Os:   &opSys,
 				Arch: &arch,
 			}
-			repoPlatforms = append(repoPlatforms, osArch)
+
+			if opSys != "" || arch != "" {
+				osArchString := strings.TrimSpace(fmt.Sprintf("%s %s", opSys, arch))
+				repoPlatformsSet[osArchString] = &gql_generated.OsArch{Os: &opSys, Arch: &arch}
+			}
 
 			// get image info from manifest annotation, if not found get from image config labels.
 			annotations := common.GetAnnotations(imageBlobManifest.Annotations, imageConfigInfo.Config.Labels)
 
-			repoVendors = append(repoVendors, &annotations.Vendor)
+			if annotations.Vendor != "" {
+				repoVendorsSet[annotations.Vendor] = true
+			}
 
 			manifestTag, ok := manifest.Annotations[ispec.AnnotationRefName]
 			if !ok {
@@ -265,6 +272,17 @@ func repoListWithNewestImage(
 
 		repoSizeStr := strconv.FormatInt(repoSize, 10)
 		index := 0
+
+		repoPlatforms := make([]*gql_generated.OsArch, 0, len(repoPlatformsSet))
+		for _, osArch := range repoPlatformsSet {
+			repoPlatforms = append(repoPlatforms, osArch)
+		}
+
+		repoVendors := make([]*string, 0, len(repoVendorsSet))
+		for vendor := range repoVendorsSet {
+			vendor := vendor
+			repoVendors = append(repoVendors, &vendor)
+		}
 
 		reposSummary = append(reposSummary, &gql_generated.RepoSummary{
 			Name:        &repoName,
@@ -591,7 +609,7 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 			}
 
 			lastUpdatedImageSummary = &imageSummary
-		} else if imageLastUpdated != nil && repoLastUpdatedTimestamp.After(*imageLastUpdated) {
+		} else if imageLastUpdated != nil && repoLastUpdatedTimestamp.Before(*imageLastUpdated) {
 			repoLastUpdatedTimestamp = *imageLastUpdated
 			lastUpdatedImageSummary = &imageSummary
 		}
