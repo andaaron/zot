@@ -274,11 +274,13 @@ func repoListWithNewestImage(
 		index := 0
 
 		repoPlatforms := make([]*gql_generated.OsArch, 0, len(repoPlatformsSet))
+
 		for _, osArch := range repoPlatformsSet {
 			repoPlatforms = append(repoPlatforms, osArch)
 		}
 
 		repoVendors := make([]*string, 0, len(repoVendorsSet))
+
 		for vendor := range repoVendorsSet {
 			vendor := vendor
 			repoVendors = append(repoVendors, &vendor)

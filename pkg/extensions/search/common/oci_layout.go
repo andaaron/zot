@@ -505,11 +505,13 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 	size := strconv.FormatInt(repoSize, 10)
 
 	repoPlatforms := make([]OsArch, 0, len(repoPlatformsSet))
+
 	for _, osArch := range repoPlatformsSet {
 		repoPlatforms = append(repoPlatforms, osArch)
 	}
 
 	repoVendors := make([]string, 0, len(repoVendorsSet))
+
 	for vendor := range repoVendorsSet {
 		vendor := vendor
 		repoVendors = append(repoVendors, vendor)

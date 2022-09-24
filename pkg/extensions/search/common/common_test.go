@@ -2007,6 +2007,7 @@ func TestGetRepositories(t *testing.T) {
 	})
 }
 
+//nolint:dupl // duplicated test code
 func TestGlobalSearch(t *testing.T) {
 	Convey("Test searching for repos with vulnerabitity scanning disabled", t, func() {
 		subpath := "/a"
