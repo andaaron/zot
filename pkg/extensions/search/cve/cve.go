@@ -42,7 +42,7 @@ type ImageCVESummary struct {
 type BaseCveInfo struct {
 	Log         log.Logger
 	Scanner     Scanner
-	LayoutUtils *common.BaseOciLayoutUtils
+	LayoutUtils common.OciLayoutUtils
 }
 
 func NewCVEInfo(storeController storage.StoreController, log log.Logger) *BaseCveInfo {
