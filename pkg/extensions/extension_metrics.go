@@ -31,7 +31,8 @@ func SetupMetricsRoutes(config *config.Config, router *mux.Router, storeControll
 	log.Info().Msg("setting up metrics routes")
 
 	if config.Extensions.Metrics != nil && *config.Extensions.Metrics.Enable {
-		extRouter := router.PathPrefix(config.Extensions.Metrics.Prometheus.Path).Handler(promhttp.Handler()).Subrouter()
+		extRouter := router.PathPrefix(config.Extensions.Metrics.Prometheus.Path).Subrouter()
 		extRouter.Use(authFunc)
+		extRouter.Methods("GET").Handler(promhttp.Handler())
 	}
 }
