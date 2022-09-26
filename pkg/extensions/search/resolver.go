@@ -316,6 +316,15 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 		requestedPage = &gql_generated.PageInput{}
 	}
 
+	localFilter := repodb.Filter{}
+	if filter != nil {
+		localFilter = repodb.Filter{
+			Os:            filter.Os,
+			Arch:          filter.Arch,
+			HasToBeSigned: filter.HasToBeSigned,
+		}
+	}
+
 	if searchingForRepos(query) {
 		pageInput := repodb.PageInput{
 			Limit:  safeDerefferencing(requestedPage.Limit, 0),
@@ -324,13 +333,8 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 				safeDerefferencing(requestedPage.SortBy, gql_generated.SortCriteriaRelevance),
 			),
 		}
-		filter := repodb.Filter{
-			Os:            filter.Os,
-			Arch:          filter.Arch,
-			HasToBeSigned: filter.HasToBeSigned,
-		}
 
-		reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, query, filter, pageInput)
+		reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, query, localFilter, pageInput)
 		if err != nil {
 			return []*gql_generated.RepoSummary{}, []*gql_generated.ImageSummary{}, []*gql_generated.LayerSummary{}, err
 		}
@@ -349,13 +353,8 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 				safeDerefferencing(requestedPage.SortBy, gql_generated.SortCriteriaRelevance),
 			),
 		}
-		filter := repodb.Filter{
-			Os:            filter.Os,
-			Arch:          filter.Arch,
-			HasToBeSigned: filter.HasToBeSigned,
-		}
 
-		reposMeta, manifestMetaMap, err := repoDB.SearchTags(ctx, query, filter, pageInput)
+		reposMeta, manifestMetaMap, err := repoDB.SearchTags(ctx, query, localFilter, pageInput)
 		if err != nil {
 			return []*gql_generated.RepoSummary{}, []*gql_generated.ImageSummary{}, []*gql_generated.LayerSummary{}, err
 		}
