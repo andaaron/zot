@@ -106,7 +106,8 @@ func TestServeExtensions(t *testing.T) {
 		WaitTillServerReady(baseURL)
 		data, err := os.ReadFile(logFile.Name())
 		So(err, ShouldBeNil)
-		So(string(data), ShouldContainSubstring, "\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null") //nolint:lll // gofumpt conflicts with lll
+		So(string(data), ShouldContainSubstring,
+			"\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null,\"UI\":null") //nolint:lll // gofumpt conflicts with lll
 	})
 }
 
@@ -147,7 +148,7 @@ func testWithMetricsEnabled(cfgContentFormat string) {
 	data, err := os.ReadFile(logFile.Name())
 	So(err, ShouldBeNil)
 	So(string(data), ShouldContainSubstring,
-		"\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":{\"Enable\":true,\"Prometheus\":{\"Path\":\"/metrics\"}},\"Scrub\":null,\"Lint\":null}") //nolint:lll // gofumpt conflicts with lll
+		"\"Metrics\":{\"Enable\":true,\"Prometheus\":{\"Path\":\"/metrics\"}}")
 }
 
 func TestServeMetricsExtension(t *testing.T) {
@@ -271,7 +272,7 @@ func TestServeMetricsExtension(t *testing.T) {
 		data, err := os.ReadFile(logFile.Name())
 		So(err, ShouldBeNil)
 		So(string(data), ShouldContainSubstring,
-			"\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":{\"Enable\":false,\"Prometheus\":{\"Path\":\"/metrics\"}},\"Scrub\":null,\"Lint\":null}}") //nolint:lll // gofumpt conflicts with lll
+			"\"Metrics\":{\"Enable\":false,\"Prometheus\":{\"Path\":\"/metrics\"}}") //nolint:lll // gofumpt conflicts with lll
 	})
 }
 
@@ -440,8 +441,7 @@ func TestServeScrubExtension(t *testing.T) {
 		defer os.Remove(logPath) // clean up
 		// Even if in config we specified scrub interval=1h, the minimum interval is 2h
 		dataStr := string(data)
-		So(dataStr, ShouldContainSubstring,
-			"\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":null,\"Scrub\":{\"Interval\":3600000000000},\"Lint\":null") //nolint:lll // gofumpt conflicts with lll
+		So(dataStr, ShouldContainSubstring, "\"Scrub\":{\"Interval\":3600000000000}")
 		So(dataStr, ShouldContainSubstring,
 			"Scrub interval set to too-short interval < 2h, changing scrub duration to 2 hours and continuing.")
 	})
@@ -471,8 +471,7 @@ func TestServeScrubExtension(t *testing.T) {
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
 		dataStr := string(data)
-		So(dataStr, ShouldContainSubstring,
-			"\"Extensions\":{\"Search\":null,\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null}")
+		So(dataStr, ShouldContainSubstring, "\"Scrub\":null")
 		So(dataStr, ShouldContainSubstring, "Scrub config not provided, skipping scrub")
 		So(dataStr, ShouldNotContainSubstring,
 			"Scrub interval set to too-short interval < 2h, changing scrub duration to 2 hours and continuing.")
@@ -575,7 +574,8 @@ func TestServeSearchEnabled(t *testing.T) {
 		WaitTillTrivyDBDownloadStarted(tempDir)
 		defer os.Remove(logPath) // clean up
 
-		substring := "\"Extensions\":{\"Search\":{\"CVE\":{\"UpdateInterval\":86400000000000},\"Enable\":true},\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null}" //nolint:lll // gofumpt conflicts with lll
+		substring := "\"Search\":{\"CVE\":{\"UpdateInterval\":86400000000000},\"Enable\":true}"
+
 		found, err := readLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -620,7 +620,8 @@ func TestServeSearchEnabledCVE(t *testing.T) {
 		// to avoid data race when multiple go routines write to trivy DB instance.
 		WaitTillTrivyDBDownloadStarted(tempDir)
 
-		substring := "\"Extensions\":{\"Search\":{\"CVE\":{\"UpdateInterval\":3600000000000},\"Enable\":true},\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null}" //nolint:lll // gofumpt conflicts with lll
+		substring := "\"Search\":{\"CVE\":{\"UpdateInterval\":3600000000000},\"Enable\":true}"
+
 		found, err := readLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -668,7 +669,8 @@ func TestServeSearchEnabledNoCVE(t *testing.T) {
 		// to avoid data race when multiple go routines write to trivy DB instance.
 		WaitTillTrivyDBDownloadStarted(tempDir)
 
-		substring := "\"Extensions\":{\"Search\":{\"CVE\":{\"UpdateInterval\":86400000000000},\"Enable\":true},\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null}" //nolint:lll // gofumpt conflicts with lll
+		substring := "\"Search\":{\"CVE\":{\"UpdateInterval\":86400000000000},\"Enable\":true}"
+
 		found, err := readLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -714,7 +716,7 @@ func TestServeSearchDisabled(t *testing.T) {
 		defer os.Remove(logPath) // clean up
 		dataStr := string(data)
 		So(dataStr, ShouldContainSubstring,
-			"\"Extensions\":{\"Search\":{\"CVE\":{\"UpdateInterval\":10800000000000},\"Enable\":false},\"Sync\":null,\"Metrics\":null,\"Scrub\":null,\"Lint\":null}") //nolint:lll // gofumpt conflicts with lll
+			"\"Search\":{\"CVE\":{\"UpdateInterval\":10800000000000},\"Enable\":false}")
 		So(dataStr, ShouldContainSubstring, "CVE config not provided, skipping CVE update")
 		So(dataStr, ShouldNotContainSubstring,
 			"CVE update interval set to too-short interval < 2h, changing update duration to 2 hours and continuing.")
