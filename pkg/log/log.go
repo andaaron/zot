@@ -16,9 +16,6 @@ const defaultPerms = 0o0600
 // nolint:gochecknoglobals
 var loggerSetTimeFormat sync.Once
 
-// nolint:gochecknoglobals
-var auditLoggerSetTimeFormat sync.Once
-
 // Logger extends zerolog's Logger.
 type Logger struct {
 	zerolog.Logger
@@ -56,7 +53,7 @@ func NewLogger(level, output string) Logger {
 }
 
 func NewAuditLogger(level, audit string) *Logger {
-	auditLoggerSetTimeFormat.Do(func() {
+	loggerSetTimeFormat.Do(func() {
 		zerolog.TimeFieldFormat = time.RFC3339Nano
 	})
 
