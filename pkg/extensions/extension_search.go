@@ -63,7 +63,7 @@ func downloadTrivyDB(log log.Logger, updateInterval time.Duration) error {
 }
 
 func SetupSearchRoutes(config *config.Config, router *mux.Router, storeController storage.StoreController,
-	authFunc mux.MiddlewareFunc, searchDB repodb.RepoDB, l log.Logger,
+	searchDB repodb.RepoDB, l log.Logger,
 ) {
 	// fork a new zerolog child to avoid data race
 	log := log.Logger{Logger: l.With().Caller().Timestamp().Logger()}
@@ -85,7 +85,6 @@ func SetupSearchRoutes(config *config.Config, router *mux.Router, storeControlle
 		}
 
 		extRouter := router.PathPrefix(constants.ExtSearchPrefix).Subrouter()
-		extRouter.Use(authFunc)
 		extRouter.Methods("GET", "POST", "OPTIONS").
 			Handler(gqlHandler.NewDefaultServer(gql_generated.NewExecutableSchema(resConfig)))
 	}
@@ -106,7 +105,7 @@ func GetExtensions(config *config.Config) distext.ExtensionList {
 	extensions := make([]distext.Extension, 0)
 
 	if config.Extensions != nil && config.Extensions.Search != nil {
-		endpoints := []string{constants.ExtSearchPrefix}
+		endpoints := []string{constants.V2ExtSearchPrefix}
 		searchExt := getExtension("_zot",
 			"https://github.com/project-zot/zot/tree/main/pkg/extensions/_zot.md",
 			"zot registry extension",
