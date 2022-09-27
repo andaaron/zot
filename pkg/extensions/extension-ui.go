@@ -19,11 +19,8 @@ import (
 var content embed.FS
 
 func SetupUIRoutes(config *config.Config, router *mux.Router, storeController storage.StoreController,
-	l log.Logger,
+	log log.Logger,
 ) {
-	// fork a new zerolog child to avoid data race
-	log := log.Logger{Logger: l.With().Caller().Timestamp().Logger()}
-
 	if config.Extensions.UI != nil {
 		fsub, _ := fs.Sub(content, "build")
 
