@@ -3905,65 +3905,65 @@ func TestSearchSize(t *testing.T) {
 }
 
 func TestImageSummary(t *testing.T) {
-	port := GetFreePort()
-	baseURL := GetBaseURL(port)
-	conf := config.New()
-	conf.HTTP.Port = port
-	conf.Storage.RootDirectory = t.TempDir()
-
-	defaultVal := true
-	conf.Extensions = &extconf.ExtensionConfig{
-		Search: &extconf.SearchConfig{Enable: &defaultVal},
-	}
-
-	conf.Extensions.Search.CVE = nil
-
-	ctlr := api.NewController(conf)
-
-	gqlQuery := `
-		{
-			Image(image:"%s:latest"){
-				RepoName,
-				Tag,
-				Digest,
-				ConfigDigest,
-				LastUpdated,
-				IsSigned,
-				Size
-				Layers { Digest Size }
-			}
-		}`
-
-	gqlEndpoint := fmt.Sprintf("%s%s?query=", baseURL, graphqlQueryPrefix)
-
-	// create test images
-	config := ispec.Image{
-		Architecture: "amd64",
-		OS:           "linux",
-		RootFS: ispec.RootFS{
-			Type:    "layers",
-			DiffIDs: []digest.Digest{},
-		},
-		Author: "ZotUser",
-	}
-
-	configBlob, errConfig := json.Marshal(config)
-	configDigest := digest.FromBytes(configBlob)
-
-	layers := [][]byte{
-		{10, 11, 10, 11},
-		{11, 11, 11, 11},
-		{10, 10, 10, 11},
-	}
-
-	platform := ispec.Platform{ // not actual data!
-		Architecture: "amd64",
-		OS:           "linux",
-		OSVersion:    "4.18",
-		Variant:      "Fedora",
-	}
-
 	Convey("GraphQL query ImageSummary", t, func() {
+		port := GetFreePort()
+		baseURL := GetBaseURL(port)
+		conf := config.New()
+		conf.HTTP.Port = port
+		conf.Storage.RootDirectory = t.TempDir()
+
+		defaultVal := true
+		conf.Extensions = &extconf.ExtensionConfig{
+			Search: &extconf.SearchConfig{Enable: &defaultVal},
+		}
+
+		conf.Extensions.Search.CVE = nil
+
+		ctlr := api.NewController(conf)
+
+		gqlQuery := `
+			{
+				Image(image:"%s:latest"){
+					RepoName,
+					Tag,
+					Digest,
+					ConfigDigest,
+					LastUpdated,
+					IsSigned,
+					Size
+					Layers { Digest Size }
+				}
+			}`
+
+		gqlEndpoint := fmt.Sprintf("%s%s?query=", baseURL, graphqlQueryPrefix)
+
+		// create test images
+		config := ispec.Image{
+			Architecture: "amd64",
+			OS:           "linux",
+			RootFS: ispec.RootFS{
+				Type:    "layers",
+				DiffIDs: []digest.Digest{},
+			},
+			Author: "ZotUser",
+		}
+
+		configBlob, errConfig := json.Marshal(config)
+		configDigest := digest.FromBytes(configBlob)
+
+		layers := [][]byte{
+			{10, 11, 10, 11},
+			{11, 11, 11, 11},
+			{10, 10, 10, 11},
+		}
+
+		platform := ispec.Platform{ // not actual data!
+			Architecture: "amd64",
+			OS:           "linux",
+			OSVersion:    "4.18",
+			Variant:      "Fedora",
+		}
+
 		So(errConfig, ShouldBeNil) // marshall success, config is valid JSON
 		go startServer(ctlr)
 		defer stopServer(ctlr)
