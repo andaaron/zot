@@ -41,52 +41,6 @@ type BaseOciLayoutUtils struct {
 	StoreController storage.StoreController
 }
 
-type RepoInfo struct {
-	Summary        RepoSummary
-	ImageSummaries []ImageSummary `json:"images"`
-}
-
-type RepoSummary struct {
-	Name        string       `json:"name"`
-	LastUpdated time.Time    `json:"lastUpdated"`
-	Size        string       `json:"size"`
-	Platforms   []OsArch     `json:"platforms"`
-	Vendors     []string     `json:"vendors"`
-	Score       int          `json:"score"`
-	NewestImage ImageSummary `json:"newestImage"`
-}
-
-type ImageSummary struct {
-	RepoName      string    `json:"repoName"`
-	Tag           string    `json:"tag"`
-	Digest        string    `json:"digest"`
-	ConfigDigest  string    `json:"configDigest"`
-	LastUpdated   time.Time `json:"lastUpdated"`
-	IsSigned      bool      `json:"isSigned"`
-	Size          string    `json:"size"`
-	Platform      OsArch    `json:"platform"`
-	Vendor        string    `json:"vendor"`
-	Score         int       `json:"score"`
-	DownloadCount int       `json:"downloadCount"`
-	Description   string    `json:"description"`
-	Licenses      string    `json:"licenses"`
-	Labels        string    `json:"labels"`
-	Title         string    `json:"title"`
-	Source        string    `json:"source"`
-	Documentation string    `json:"documentation"`
-	Layers        []Layer   `json:"layers"`
-}
-
-type OsArch struct {
-	Os   string `json:"os"`
-	Arch string `json:"arch"`
-}
-
-type Layer struct {
-	Size   string `json:"size"`
-	Digest string `json:"digest"`
-}
-
 // NewBaseOciLayoutUtils initializes a new OciLayoutUtils object.
 func NewBaseOciLayoutUtils(storeController storage.StoreController, log log.Logger) *BaseOciLayoutUtils {
 	return &BaseOciLayoutUtils{Log: log, StoreController: storeController}
@@ -439,10 +393,10 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 			repoPlatformsSet[osArchString] = osArch
 		}
 
-		layers := make([]Layer, 0)
+		layers := make([]LayerSummary, 0)
 
 		for _, layer := range manifest.Layers {
-			layerInfo := Layer{}
+			layerInfo := LayerSummary{}
 
 			layerInfo.Digest = layer.Digest.Hex
 
