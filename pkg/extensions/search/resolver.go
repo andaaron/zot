@@ -252,6 +252,7 @@ func repoListWithNewestImage(
 					MaxSeverity: &imageCveSummary.MaxSeverity,
 					Count:       &imageCveSummary.Count,
 				},
+				Logo: &annotations.Logo,
 			}
 
 			if manifest.Digest.String() == lastUpdatedTag.Digest {
@@ -463,6 +464,7 @@ func RepoMeta2ImageSummaries(ctx context.Context, repoMeta repodb.RepoMetadata,
 			Licenses:      &annotations.Licenses,
 			Labels:        &annotations.Labels,
 			Source:        &annotations.Source,
+			Logo:          &annotations.Logo,
 			History:       historyEntries,
 			Vulnerabilities: &gql_generated.ImageVulnerabilitySummary{
 				MaxSeverity: &imageCveSummary.MaxSeverity,
@@ -644,6 +646,7 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 			Licenses:      &annotations.Licenses,
 			Labels:        &annotations.Labels,
 			Source:        &annotations.Source,
+			Logo:          &annotations.Logo,
 			History:       historyEntries,
 			Vulnerabilities: &gql_generated.ImageVulnerabilitySummary{
 				MaxSeverity: &imageCveSummary.MaxSeverity,
@@ -916,6 +919,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 				Os:   &imageConfig.OS,
 				Arch: &imageConfig.Architecture,
 			},
+			Logo: &annotations.Logo,
 		}
 
 		return imageInfo
@@ -965,6 +969,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 					Os:   &imageConfig.OS,
 					Arch: &imageConfig.Architecture,
 				},
+				Logo: &annotations.Logo,
 			}
 		}
 
@@ -1010,6 +1015,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 			Os:   &imageConfig.OS,
 			Arch: &imageConfig.Architecture,
 		},
+		Logo: &annotations.Logo,
 	}
 
 	return imageInfo
