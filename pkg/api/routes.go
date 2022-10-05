@@ -514,7 +514,7 @@ func (rh *RouteHandler) UpdateManifest(response http.ResponseWriter, request *ht
 
 	if rh.c.RepoDB != nil {
 		// check is image is a signature
-		isSignature, signatureType, signedManifestDigest, err := imageIsSignature(name, body, digest, reference,
+		isSignature, signatureType, signedManifestDigest, err := imageIsSignature(name, body, reference,
 			rh.c.StoreController)
 		if err != nil {
 			rh.c.Log.Error().Err(err).Msg("can't check if image is a signature or not")
@@ -540,7 +540,7 @@ func (rh *RouteHandler) UpdateManifest(response http.ResponseWriter, request *ht
 				metadataSuccessfullySet = false
 			}
 		} else {
-			imageMetadata, err := newManifestMeta(name, body, digest, reference, rh.c.StoreController)
+			imageMetadata, err := newManifestMeta(name, body, rh.c.StoreController)
 			if err == nil {
 				err := rh.c.RepoDB.SetManifestMeta(digest, imageMetadata)
 				if err != nil {
@@ -590,7 +590,7 @@ func (rh *RouteHandler) UpdateManifest(response http.ResponseWriter, request *ht
 // - string: the digest of the image it signs
 //
 // - error: any errors that occur.
-func imageIsSignature(repoName string, manifestBlob []byte, manifestDigest, reference string,
+func imageIsSignature(repoName string, manifestBlob []byte, reference string,
 	storeController storage.StoreController,
 ) (bool, string, string, error) {
 	var manifestContent artifactspec.Manifest
@@ -637,7 +637,7 @@ func imageIsSignature(repoName string, manifestBlob []byte, manifestDigest, refe
 	return false, "", "", nil
 }
 
-func newManifestMeta(repoName string, manifestBlob []byte, digest, reference string,
+func newManifestMeta(repoName string, manifestBlob []byte,
 	storeController storage.StoreController,
 ) (repodb.ManifestMetadata, error) {
 	const (
@@ -751,7 +751,7 @@ func (rh *RouteHandler) DeleteManifest(response http.ResponseWriter, request *ht
 	}
 
 	if rh.c.RepoDB != nil {
-		isSignature, signatureType, signedManifestDigest, err := imageIsSignature(name, manifestBlob, manifestDigest,
+		isSignature, signatureType, signedManifestDigest, err := imageIsSignature(name, manifestBlob,
 			reference, rh.c.StoreController)
 		if err != nil {
 			rh.c.Log.Error().Err(err).Msg("can't check if image is a signature or not")

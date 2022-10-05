@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
@@ -524,7 +523,7 @@ func SignImageUsingCosign(repoTag, port string) error {
 
 	defer func() { _ = os.Chdir(cwd) }()
 
-	tdir, err := ioutil.TempDir("", "cosign")
+	tdir, err := os.MkdirTemp("", "cosign")
 	if err != nil {
 		return err
 	}
@@ -560,7 +559,7 @@ func SignImageUsingNotary(repoTag, port string) error {
 
 	defer func() { _ = os.Chdir(cwd) }()
 
-	tdir, err := ioutil.TempDir("", "notation")
+	tdir, err := os.MkdirTemp("", "notation")
 	if err != nil {
 		return err
 	}
