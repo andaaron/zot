@@ -19,7 +19,7 @@ TESTDATA := $(TOP_LEVEL)/test/data
 OS ?= linux
 ARCH ?= amd64
 BENCH_OUTPUT ?= stdout
-EXTENSIONS ?= sync,search,scrub,metrics,ui_base,lint
+EXTENSIONS ?= sync,search,scrub,metrics,lint
 comma:= ,
 hyphen:= -
 extended-name:=
@@ -55,11 +55,16 @@ binary: modcheck create-name build-metadata
 	env CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build -o bin/zot-$(OS)-$(ARCH) -buildmode=pie -tags $(EXTENSIONS),containers_image_openpgp -v -trimpath -ldflags "-X zotregistry.io/zot/pkg/api/config.Commit=${COMMIT} -X zotregistry.io/zot/pkg/api/config.BinaryType=$(extended-name) -X zotregistry.io/zot/pkg/api/config.GoVersion=${GO_VERSION} -s -w" ./cmd/zot
 
 .PHONY: binary-debug
+binary-debug: $(if $(findstring ui_base,$(EXTENSIONS)), ui)
 binary-debug: modcheck swagger create-name build-metadata
 	env CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build -o bin/zot-$(OS)-$(ARCH)-debug -buildmode=pie -tags $(EXTENSIONS),debug,containers_image_openpgp -v -gcflags all='-N -l' -ldflags "-X zotregistry.io/zot/pkg/api/config.Commit=${COMMIT} -X zotregistry.io/zot/pkg/api/config.BinaryType=$(extended-name) -X zotregistry.io/zot/pkg/api/config.GoVersion=${GO_VERSION}" ./cmd/zot
 
+.PHONY: binary-ui
+binary-ui: modcheck create-name build-metadata ui
+	env CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build -o bin/zot-$(OS)-$(ARCH)-ui -buildmode=pie -tags $(EXTENSIONS),ui_base,containers_image_openpgp -v -trimpath -ldflags "-X zotregistry.io/zot/pkg/api/config.Commit=${COMMIT} -X zotregistry.io/zot/pkg/api/config.BinaryType=$(extended-name) -X zotregistry.io/zot/pkg/api/config.GoVersion=${GO_VERSION} -s -w" ./cmd/zot
+
 .PHONY: cli
-cli: modcheck create-name build-metadata
+cli: modcheck create-name build-metadata ui # at the moment zli depends on the ui build (and ui_base label), we should uncouple in the future
 	env CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) go build -o bin/zli-$(OS)-$(ARCH) -buildmode=pie -tags $(EXTENSIONS),ui_base,containers_image_openpgp -v -trimpath -ldflags "-X zotregistry.io/zot/pkg/api/config.Commit=${COMMIT} -X zotregistry.io/zot/pkg/api/config.BinaryType=$(extended-name) -X zotregistry.io/zot/pkg/api/config.GoVersion=${GO_VERSION} -s -w" ./cmd/zli
 
 .PHONY: bench
@@ -139,11 +144,14 @@ $(GOLINTER):
 .PHONY: check
 check: $(if $(findstring ui_base,$(EXTENSIONS)), ui)
 check: ./golangcilint.yaml $(GOLINTER)
+	mkdir -p pkg/extensions/build; touch pkg/extensions/build/.empty
 	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags containers_image_openpgp ./...
 	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags $(EXTENSIONS),containers_image_openpgp ./...
+	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags $(EXTENSIONS),containers_image_openpgp,ui_base,debug ./...
 	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags dev,containers_image_openpgp ./...
 	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags dev,$(EXTENSIONS),containers_image_openpgp ./...
 	$(GOLINTER) --config ./golangcilint.yaml run --enable-all --out-format=colored-line-number --build-tags stress,$(EXTENSIONS),containers_image_openpgp ./...
+	rm pkg/extensions/build/.empty
 
 swagger/docs.go: 
 	swag -v || go install github.com/swaggo/swag/cmd/swag@1.6.3
