@@ -139,7 +139,7 @@ type ComplexityRoot struct {
 		ImageListForCve         func(childComplexity int, id string) int
 		ImageListForDigest      func(childComplexity int, id string) int
 		ImageListWithCVEFixed   func(childComplexity int, id string, image string) int
-		RepoListWithNewestImage func(childComplexity int) int
+		RepoListWithNewestImage func(childComplexity int, requestedPage *PageInput) int
 	}
 
 	RepoInfo struct {
@@ -167,7 +167,7 @@ type QueryResolver interface {
 	ImageListForCve(ctx context.Context, id string) ([]*ImageSummary, error)
 	ImageListWithCVEFixed(ctx context.Context, id string, image string) ([]*ImageSummary, error)
 	ImageListForDigest(ctx context.Context, id string) ([]*ImageSummary, error)
-	RepoListWithNewestImage(ctx context.Context) ([]*RepoSummary, error)
+	RepoListWithNewestImage(ctx context.Context, requestedPage *PageInput) ([]*RepoSummary, error)
 	ImageList(ctx context.Context, repo string) ([]*ImageSummary, error)
 	ExpandedRepoInfo(ctx context.Context, repo string) (*RepoInfo, error)
 	GlobalSearch(ctx context.Context, query string, filter *Filter, requestedPage *PageInput) (*GlobalSearchResult, error)
@@ -680,7 +680,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Query.RepoListWithNewestImage(childComplexity), true
+		args, err := ec.field_Query_RepoListWithNewestImage_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.RepoListWithNewestImage(childComplexity, args["requestedPage"].(*PageInput)), true
 
 	case "RepoInfo.Images":
 		if e.complexity.RepoInfo.Images == nil {
@@ -980,7 +985,7 @@ type Query {
     ImageListForCVE(id: String!): [ImageSummary!]
     ImageListWithCVEFixed(id: String!, image: String!): [ImageSummary!]
     ImageListForDigest(id: String!): [ImageSummary!]
-    RepoListWithNewestImage: [RepoSummary!]!  # Newest based on created timestamp
+    RepoListWithNewestImage(requestedPage: PageInput): [RepoSummary!]!  # Newest based on created timestamp
     ImageList(repo: String!): [ImageSummary!]
     ExpandedRepoInfo(repo: String!): RepoInfo!
     GlobalSearch(query: String!, filter: Filter, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
@@ -1170,6 +1175,21 @@ func (ec *executionContext) field_Query_Image_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["image"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_RepoListWithNewestImage_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *PageInput
+	if tmp, ok := rawArgs["requestedPage"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestedPage"))
+		arg0, err = ec.unmarshalOPageInput2ᚖzotregistryᚗioᚋzotᚋpkgᚋextensionsᚋsearchᚋgql_generatedᚐPageInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["requestedPage"] = arg0
 	return args, nil
 }
 
@@ -3868,7 +3888,7 @@ func (ec *executionContext) _Query_RepoListWithNewestImage(ctx context.Context, 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().RepoListWithNewestImage(rctx)
+		return ec.resolvers.Query().RepoListWithNewestImage(rctx, fc.Args["requestedPage"].(*PageInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3918,6 +3938,17 @@ func (ec *executionContext) fieldContext_Query_RepoListWithNewestImage(ctx conte
 			}
 			return nil, fmt.Errorf("no field named %q was found under type RepoSummary", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_RepoListWithNewestImage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }

@@ -150,7 +150,7 @@ type Query {
     ImageListForCVE(id: String!): [ImageSummary!]
     ImageListWithCVEFixed(id: String!, image: String!): [ImageSummary!]
     ImageListForDigest(id: String!): [ImageSummary!]
-    RepoListWithNewestImage: [RepoSummary!]!  # Newest based on created timestamp
+    RepoListWithNewestImage(requestedPage: PageInput): [RepoSummary!]!  # Newest based on created timestamp
     ImageList(repo: String!): [ImageSummary!]
     ExpandedRepoInfo(repo: String!): RepoInfo!
     GlobalSearch(query: String!, filter: Filter, requestedPage: PageInput): GlobalSearchResult!  # Return all images/repos/layers which match the query
