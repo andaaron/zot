@@ -26,7 +26,7 @@ func SetupGQLPlaygroundRoutes(conf *config.Config, router *mux.Router,
 	log := log.Logger{Logger: l.With().Caller().Timestamp().Logger()}
 	log.Info().Msg("setting up graphql playground route")
 
-	templ, err := template.ParseFS(playgroundHTML, "gqlplayground/index.html.tmpl")
+	templ, err := template.ParseFS(playgroundHTML, "index.html.tmpl")
 	if err != nil {
 		log.Fatal().Err(err)
 	}
@@ -43,7 +43,7 @@ func SetupGQLPlaygroundRoutes(conf *config.Config, router *mux.Router,
 			proto += "https://"
 		}
 
-		target := proto + req.Host + constants.ExtSearchPrefix
+		target := proto + req.Host + constants.V2ExtSearchPrefix
 
 		// respond with the output of template execution
 		_ = templ.Execute(writer, struct {
