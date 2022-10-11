@@ -116,7 +116,11 @@ func getImageSummary(ctx context.Context, repo, tag string, repoDB repodb.RepoDB
 		manifestDigest: manifestMeta,
 	}
 
-	imageSummaries := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, cveInfo)
+	skip := convert.SkipQGLField{
+		Vulnerabilities: canSkipField(convert.GetPreloads(ctx), "Vulnerabilities"),
+	}
+
+	imageSummaries := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, skip, cveInfo)
 
 	return imageSummaries[0], nil
 }
@@ -134,6 +138,10 @@ func repoListWithNewestImage(
 		requestedPage = &gql_generated.PageInput{}
 	}
 
+	skip := convert.SkipQGLField{
+		Vulnerabilities: canSkipField(convert.GetPreloads(ctx), "NewestImage.Vulnerabilities"),
+	}
+
 	pageInput := repodb.PageInput{
 		Limit:  safeDerefferencing(requestedPage.Limit, 0),
 		Offset: safeDerefferencing(requestedPage.Offset, 0),
@@ -148,7 +156,7 @@ func repoListWithNewestImage(
 	}
 
 	for _, repoMeta := range reposMeta {
-		repoSummary := convert.RepoMeta2RepoSummary(ctx, repoMeta, manifestMetaMap, cveInfo)
+		repoSummary := convert.RepoMeta2RepoSummary(ctx, repoMeta, manifestMetaMap, skip, cveInfo)
 		repos = append(repos, repoSummary)
 	}
 
@@ -159,6 +167,7 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 	requestedPage *gql_generated.PageInput, cveInfo cveinfo.CveInfo, log log.Logger, //nolint:unparam
 ) ([]*gql_generated.RepoSummary, []*gql_generated.ImageSummary, []*gql_generated.LayerSummary, error,
 ) {
+	preloads := convert.GetPreloads(ctx)
 	repos := []*gql_generated.RepoSummary{}
 	images := []*gql_generated.ImageSummary{}
 	layers := []*gql_generated.LayerSummary{}
@@ -177,6 +186,10 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 	}
 
 	if searchingForRepos(query) {
+		skip := convert.SkipQGLField{
+			Vulnerabilities: canSkipField(preloads, "Repos.NewestImage.Vulnerabilities"),
+		}
+
 		pageInput := repodb.PageInput{
 			Limit:  safeDerefferencing(requestedPage.Limit, 0),
 			Offset: safeDerefferencing(requestedPage.Offset, 0),
@@ -191,11 +204,15 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 		}
 
 		for _, repoMeta := range reposMeta {
-			repoSummary := convert.RepoMeta2RepoSummary(ctx, repoMeta, manifestMetaMap, cveInfo)
+			repoSummary := convert.RepoMeta2RepoSummary(ctx, repoMeta, manifestMetaMap, skip, cveInfo)
 
 			repos = append(repos, repoSummary)
 		}
 	} else { // search for images
+		skip := convert.SkipQGLField{
+			Vulnerabilities: canSkipField(preloads, "Images.Vulnerabilities"),
+		}
+
 		pageInput := repodb.PageInput{
 			Limit:  safeDerefferencing(requestedPage.Limit, 0),
 			Offset: safeDerefferencing(requestedPage.Offset, 0),
@@ -210,13 +227,19 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 		}
 
 		for _, repoMeta := range reposMeta {
-			imageSummaries := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, cveInfo)
+			imageSummaries := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, skip, cveInfo)
 
 			images = append(images, imageSummaries...)
 		}
 	}
 
 	return repos, images, layers, nil
+}
+
+func canSkipField(preloads map[string]bool, s string) bool {
+	fieldIsPresent := preloads[s]
+
+	return !fieldIsPresent
 }
 
 func validateGlobalSearchInput(query string, filter *gql_generated.Filter,
@@ -376,7 +399,11 @@ func expandedRepoInfo(ctx context.Context, repo string, repoDB repodb.RepoDB, cv
 		manifestMetaMap[digest] = manifestMeta
 	}
 
-	repoSummary, imageSummaries := convert.RepoMeta2ExpandedRepoInfo(ctx, repoMeta, manifestMetaMap, cveInfo)
+	skip := convert.SkipQGLField{
+		Vulnerabilities: canSkipField(convert.GetPreloads(ctx), "Summary.NewestImage.Vulnerabilities"),
+	}
+
+	repoSummary, imageSummaries := convert.RepoMeta2ExpandedRepoInfo(ctx, repoMeta, manifestMetaMap, skip, cveInfo)
 
 	return &gql_generated.RepoInfo{Summary: repoSummary, Images: imageSummaries}, nil
 }
