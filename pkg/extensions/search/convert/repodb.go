@@ -17,8 +17,16 @@ import (
 	"zotregistry.io/zot/pkg/storage/repodb"
 )
 
+const (
+	imageVulnerabilities = "Images.Vulnerabilities"
+)
+
+type SkipQGLField struct {
+	Vulnerabilities bool
+}
+
 func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
-	manifestMetaMap map[string]repodb.ManifestMetadata, cveInfo cveinfo.CveInfo,
+	manifestMetaMap map[string]repodb.ManifestMetadata, skip SkipQGLField, cveInfo cveinfo.CveInfo,
 ) *gql_generated.RepoSummary {
 	var (
 		repoLastUpdatedTimestamp = time.Time{}
@@ -159,7 +167,7 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 
 	// We only scan the latest image on the repo for performance reasons
 	// Check if vulnerability scanning is disabled
-	if cveInfo != nil && lastUpdatedImageSummary != nil {
+	if cveInfo != nil && lastUpdatedImageSummary != nil && !skip.Vulnerabilities {
 		imageName := fmt.Sprintf("%s:%s", repoMeta.Name, *lastUpdatedImageSummary.Tag)
 
 		imageCveSummary, err := cveInfo.GetCVESummaryForImage(imageName)
@@ -196,7 +204,7 @@ func RepoMeta2RepoSummary(ctx context.Context, repoMeta repodb.RepoMetadata,
 }
 
 func RepoMeta2ImageSummaries(ctx context.Context, repoMeta repodb.RepoMetadata,
-	manifestMetaMap map[string]repodb.ManifestMetadata, cveInfo cveinfo.CveInfo,
+	manifestMetaMap map[string]repodb.ManifestMetadata, skip SkipQGLField, cveInfo cveinfo.CveInfo,
 ) []*gql_generated.ImageSummary {
 	imageSummaries := make([]*gql_generated.ImageSummary, 0, len(repoMeta.Tags))
 
@@ -223,7 +231,7 @@ func RepoMeta2ImageSummaries(ctx context.Context, repoMeta repodb.RepoMetadata,
 
 		imageCveSummary := cveinfo.ImageCVESummary{}
 		// Check if vulnerability scanning is disabled
-		if cveInfo != nil {
+		if cveInfo != nil && !skip.Vulnerabilities {
 			imageName := fmt.Sprintf("%s:%s", repoMeta.Name, tag)
 			imageCveSummary, err = cveInfo.GetCVESummaryForImage(imageName)
 
@@ -318,6 +326,7 @@ func RepoMeta2ExpandedRepoInfo(ctx context.Context, repoMeta repodb.RepoMetadata
 		size = int64(0)
 
 		imageSummaries = make([]*gql_generated.ImageSummary, 0, len(repoMeta.Tags))
+		preloads       = GetPreloads(ctx)
 	)
 
 	for tag, manifestDigest := range repoMeta.Tags {
@@ -434,7 +443,7 @@ func RepoMeta2ExpandedRepoInfo(ctx context.Context, repoMeta repodb.RepoMetadata
 
 	// We only scan the latest image on the repo for performance reasons
 	// Check if vulnerability scanning is disabled
-	if cveInfo != nil && lastUpdatedImageSummary != nil {
+	if cveInfo != nil && lastUpdatedImageSummary != nil && preloads[imageVulnerabilities] {
 		imageName := fmt.Sprintf("%s:%s", repoMeta.Name, *lastUpdatedImageSummary.Tag)
 
 		imageCveSummary, err := cveInfo.GetCVESummaryForImage(imageName)
@@ -470,4 +479,47 @@ func RepoMeta2ExpandedRepoInfo(ctx context.Context, repoMeta repodb.RepoMetadata
 	}
 
 	return summary, imageSummaries
+}
+
+func GetPreloads(ctx context.Context) map[string]bool {
+	if !graphql.HasOperationContext(ctx) {
+		return map[string]bool{}
+	}
+
+	nestedPreloads := GetNestedPreloads(
+		graphql.GetOperationContext(ctx),
+		graphql.CollectFieldsCtx(ctx, nil),
+		"",
+	)
+
+	preloads := map[string]bool{}
+
+	for _, str := range nestedPreloads {
+		preloads[str] = true
+	}
+
+	return preloads
+}
+
+func GetNestedPreloads(ctx *graphql.OperationContext, fields []graphql.CollectedField, prefix string,
+) []string {
+	preloads := []string{}
+
+	for _, column := range fields {
+		prefixColumn := GetPreloadString(prefix, column.Name)
+		preloads = append(preloads, prefixColumn)
+		preloads = append(preloads,
+			GetNestedPreloads(ctx, graphql.CollectFields(ctx, column.Selections, nil), prefixColumn)...,
+		)
+	}
+
+	return preloads
+}
+
+func GetPreloadString(prefix, name string) string {
+	if len(prefix) > 0 {
+		return prefix + "." + name
+	}
+
+	return name
 }
