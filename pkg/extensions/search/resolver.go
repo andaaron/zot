@@ -6,6 +6,7 @@ package search
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -218,6 +219,157 @@ func globalSearch(ctx context.Context, query string, repoDB repodb.RepoDB, filte
 	}
 
 	return repos, images, layers, nil
+}
+
+func derivedImageList(ctx context.Context, image string, repoDB repodb.RepoDB, pageInput repodb.PageInput,
+	filter repodb.Filter, cveInfo cveinfo.CveInfo, log log.Logger,
+) ([]*gql_generated.ImageSummary, error) {
+	imageSummaries := make([]*gql_generated.ImageSummary, 0)
+	derivedList := make([]*gql_generated.ImageSummary, 0)
+
+	// empty searchText so we get all available repos
+	reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, "", filter, pageInput)
+	if err != nil {
+		return []*gql_generated.ImageSummary{}, err
+	}
+
+	imageRepo, imageTag := common.GetImageDirAndTag(image)
+
+	var imageManifest ispec.Manifest
+
+	var imageLayers []ispec.Descriptor
+
+	for _, repoMeta := range reposMeta {
+		if repoMeta.Name == imageRepo {
+			for tag, manifestDigest := range repoMeta.Tags {
+				if tag == imageTag {
+					if manifestMeta, ok := manifestMetaMap[manifestDigest]; ok {
+						err = json.Unmarshal(manifestMeta.ManifestBlob, &imageManifest)
+						if err != nil {
+							return []*gql_generated.ImageSummary{},
+								errors.Wrapf(err, "repodb: error while unmashaling manifest blob for digest %s", manifestDigest)
+						}
+						imageLayers = imageManifest.Layers
+					}
+				}
+			}
+		}
+
+		summary := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, cveInfo)
+		imageSummaries = append(imageSummaries, summary...)
+	}
+
+	if len(imageSummaries) == 0 {
+		log.Info().Msg("no images found")
+
+		return imageSummaries, nil
+	}
+
+	for _, imageSummary := range imageSummaries {
+		if imageTag == *imageSummary.Tag && imageRepo == *imageSummary.RepoName {
+			continue
+		}
+
+		layers := imageSummary.Layers
+
+		sameLayer := 0
+
+		for _, l := range imageLayers {
+			for _, k := range layers {
+				if *k.Digest == l.Digest.String() {
+					sameLayer++
+				}
+			}
+		}
+
+		// if all layers are the same
+		if sameLayer == len(imageLayers) {
+			// add to returned list
+			derivedList = append(derivedList, imageSummary)
+		}
+	}
+
+	return derivedList, nil
+}
+
+func baseImageList(ctx context.Context, image string, repoDB repodb.RepoDB, pageInput repodb.PageInput,
+	filter repodb.Filter, cveInfo cveinfo.CveInfo, log log.Logger,
+) ([]*gql_generated.ImageSummary, error) {
+	imageSummaries := make([]*gql_generated.ImageSummary, 0)
+	imageList := make([]*gql_generated.ImageSummary, 0)
+
+	// empty searchText so we get all available repos
+	reposMeta, manifestMetaMap, err := repoDB.SearchRepos(ctx, "", filter, pageInput)
+	if err != nil {
+		return []*gql_generated.ImageSummary{}, err
+	}
+
+	imageRepo, imageTag := common.GetImageDirAndTag(image)
+
+	var imageManifest ispec.Manifest
+
+	var imageLayers []ispec.Descriptor
+
+	for _, repoMeta := range reposMeta {
+		if repoMeta.Name == imageRepo {
+			for tag, manifestDigest := range repoMeta.Tags {
+				if tag == imageTag {
+					if manifestMeta, ok := manifestMetaMap[manifestDigest]; ok {
+						err = json.Unmarshal(manifestMeta.ManifestBlob, &imageManifest)
+						if err != nil {
+							return []*gql_generated.ImageSummary{},
+								errors.Wrapf(err, "repodb: error while unmashaling manifest blob for digest %s", manifestDigest)
+						}
+						imageLayers = imageManifest.Layers
+					}
+				}
+			}
+		}
+
+		summary := convert.RepoMeta2ImageSummaries(ctx, repoMeta, manifestMetaMap, cveInfo)
+		imageSummaries = append(imageSummaries, summary...)
+	}
+
+	if len(imageSummaries) == 0 {
+		log.Info().Msg("no images found")
+
+		return imageSummaries, nil
+	}
+
+	var addImageToList bool
+	// verify every image
+	for _, imageSummary := range imageSummaries {
+		if imageTag == *imageSummary.Tag && imageRepo == *imageSummary.RepoName {
+			continue
+		}
+
+		addImageToList = true
+		layers := imageSummary.Layers
+
+		for _, l := range layers {
+			foundLayer := false
+
+			for _, k := range imageLayers {
+				if *l.Digest == k.Digest.String() {
+					foundLayer = true
+
+					break
+				}
+			}
+
+			if !foundLayer {
+				addImageToList = false
+
+				break
+			}
+		}
+
+		if addImageToList {
+			imageList = append(imageList, imageSummary)
+		}
+	}
+
+	return imageList, nil
 }
 
 func validateGlobalSearchInput(query string, filter *gql_generated.Filter,

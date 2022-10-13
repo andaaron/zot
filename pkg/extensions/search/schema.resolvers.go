@@ -10,6 +10,7 @@ import (
 	"zotregistry.io/zot/pkg/extensions/search/common"
 	"zotregistry.io/zot/pkg/extensions/search/convert"
 	"zotregistry.io/zot/pkg/extensions/search/gql_generated"
+	"zotregistry.io/zot/pkg/storage/repodb"
 )
 
 // CVEListForImage is the resolver for the CVEListForImage field.
@@ -270,148 +271,32 @@ func (r *queryResolver) GlobalSearch(ctx context.Context, query string, filter *
 
 // DependencyListForImage is the resolver for the DependencyListForImage field.
 func (r *queryResolver) DerivedImageList(ctx context.Context, image string) ([]*gql_generated.ImageSummary, error) {
-	layoutUtils := common.NewBaseOciLayoutUtils(r.storeController, r.log)
-	imageList := make([]*gql_generated.ImageSummary, 0)
-
-	repoList, err := layoutUtils.GetRepositories()
-	if err != nil {
-		r.log.Error().Err(err).Msg("unable to get repositories list")
-
-		return nil, err
+	pageInput := repodb.PageInput{
+		Limit:  safeDerefferencing(nil, 0),
+		Offset: safeDerefferencing(nil, 0),
+		SortBy: repodb.SortCriteria(
+			safeDerefferencing(nil, gql_generated.SortCriteriaRelevance),
+		),
 	}
 
-	if len(repoList) == 0 {
-		r.log.Info().Msg("no repositories found")
+	derivedList, err := derivedImageList(ctx, image, r.repoDB, pageInput, repodb.Filter{}, r.cveInfo, r.log)
 
-		return imageList, nil
-	}
-
-	imageDir, imageTag := common.GetImageDirAndTag(image)
-
-	imageManifest, _, err := layoutUtils.GetImageManifest(imageDir, imageTag)
-	if err != nil {
-		r.log.Info().Str("image", image).Msg("image not found")
-
-		return imageList, err
-	}
-
-	imageLayers := imageManifest.Layers
-
-	for _, repo := range repoList {
-		repoInfo, err := r.ExpandedRepoInfo(ctx, repo)
-		if err != nil {
-			r.log.Error().Err(err).Msg("unable to get image list")
-
-			return nil, err
-		}
-
-		imageSummaries := repoInfo.Images
-
-		// verify every image
-		for _, imageSummary := range imageSummaries {
-			if imageTag == *imageSummary.Tag && imageDir == repo {
-				continue
-			}
-
-			layers := imageSummary.Layers
-
-			sameLayer := 0
-
-			for _, l := range imageLayers {
-				for _, k := range layers {
-					if *k.Digest == l.Digest.String() {
-						sameLayer++
-					}
-				}
-			}
-
-			// if all layers are the same
-			if sameLayer == len(imageLayers) {
-				// add to returned list
-				imageList = append(imageList, imageSummary)
-			}
-		}
-	}
-
-	return imageList, nil
+	return derivedList, err
 }
 
 // BaseImageList is the resolver for the BaseImageList field.
 func (r *queryResolver) BaseImageList(ctx context.Context, image string) ([]*gql_generated.ImageSummary, error) {
-	layoutUtils := common.NewBaseOciLayoutUtils(r.storeController, r.log)
-	imageList := make([]*gql_generated.ImageSummary, 0)
-
-	repoList, err := layoutUtils.GetRepositories()
-	if err != nil {
-		r.log.Error().Err(err).Msg("unable to get repositories list")
-
-		return nil, err
+	pageInput := repodb.PageInput{
+		Limit:  safeDerefferencing(nil, 0),
+		Offset: safeDerefferencing(nil, 0),
+		SortBy: repodb.SortCriteria(
+			safeDerefferencing(nil, gql_generated.SortCriteriaRelevance),
+		),
 	}
 
-	if len(repoList) == 0 {
-		r.log.Info().Msg("no repositories found")
+	imageList, err := baseImageList(ctx, image, r.repoDB, pageInput, repodb.Filter{}, r.cveInfo, r.log)
 
-		return imageList, nil
-	}
-
-	imageDir, imageTag := common.GetImageDirAndTag(image)
-
-	imageManifest, _, err := layoutUtils.GetImageManifest(imageDir, imageTag)
-	if err != nil {
-		r.log.Info().Str("image", image).Msg("image not found")
-
-		return imageList, err
-	}
-
-	imageLayers := imageManifest.Layers
-
-	// This logic may not scale well in the future as we need to read all the
-	// manifest files from the disk when the call is made, we should improve in a future PR
-	for _, repo := range repoList {
-		repoInfo, err := r.ExpandedRepoInfo(ctx, repo)
-		if err != nil {
-			r.log.Error().Err(err).Msg("unable to get image list")
-
-			return nil, err
-		}
-
-		imageSummaries := repoInfo.Images
-
-		var addImageToList bool
-		// verify every image
-		for _, imageSummary := range imageSummaries {
-			if imageTag == *imageSummary.Tag && imageDir == repo {
-				continue
-			}
-
-			addImageToList = true
-			layers := imageSummary.Layers
-
-			for _, l := range layers {
-				foundLayer := false
-
-				for _, k := range imageLayers {
-					if *l.Digest == k.Digest.String() {
-						foundLayer = true
-
-						break
-					}
-				}
-
-				if !foundLayer {
-					addImageToList = false
-
-					break
-				}
-			}
-
-			if addImageToList {
-				imageList = append(imageList, imageSummary)
-			}
-		}
-	}
-
-	return imageList, nil
+	return imageList, err
 }
 
 // Image is the resolver for the Image field.

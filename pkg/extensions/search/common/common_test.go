@@ -1249,7 +1249,7 @@ func TestDerivedImageList(t *testing.T) {
 
 		query := `
 			{
-				DerivedImageList(image:"test-repo"){
+				DerivedImageList(image:"test-repo:latest"){
 					RepoName,
 					Tag,
 					Digest,
