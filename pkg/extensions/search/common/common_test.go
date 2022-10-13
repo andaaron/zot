@@ -20,7 +20,7 @@ import (
 
 	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/gobwas/glob"
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	artifactspec "github.com/oras-project/artifacts-spec/specs-go/v1"
@@ -290,7 +290,7 @@ func verifyImageSummaryFields(t *testing.T,
 			So(history.Layer.Digest, ShouldEqual, expectedImageSummary.History[index].Layer.Digest)
 		} else {
 			// We really need to be consistent about including/removing `sha256` in API replies
-			actualDigest, err := digest.Parse(history.Layer.Digest)
+			actualDigest, err := godigest.Parse(history.Layer.Digest)
 			So(err, ShouldBeNil)
 			So(actualDigest.Encoded(), ShouldEqual, expectedImageSummary.History[index].Layer.Digest)
 		}
@@ -444,8 +444,8 @@ func TestRepoListWithNewestImage(t *testing.T) {
 			panic(err)
 		}
 
-		var manifestDigest digest.Digest
-		var configDigest digest.Digest
+		var manifestDigest godigest.Digest
+		var configDigest godigest.Digest
 		manifestDigest, configDigest, _ = GetOciLayoutDigests("../../../../test/data/zot-test")
 
 		// Delete config blob and try.
@@ -752,9 +752,7 @@ func TestExpandedRepoInfo(t *testing.T) {
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries), ShouldNotEqual, 0)
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries[0].Layers), ShouldNotEqual, 0)
 
-		_, mdigest, _, err := testStorage.GetImageManifest("zot-cve-test", "0.0.1")
-		So(err, ShouldBeNil)
-		testManifestDigest, err := digest.Parse(mdigest)
+		_, testManifestDigest, _, err := testStorage.GetImageManifest("zot-cve-test", "0.0.1")
 		So(err, ShouldBeNil)
 
 		found := false
@@ -779,9 +777,7 @@ func TestExpandedRepoInfo(t *testing.T) {
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries), ShouldNotEqual, 0)
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries[0].Layers), ShouldNotEqual, 0)
 
-		_, mdigest, _, err = testStorage.GetImageManifest("zot-cve-test", "0.0.1")
-		So(err, ShouldBeNil)
-		testManifestDigest, err = digest.Parse(mdigest)
+		_, testManifestDigest, _, err = testStorage.GetImageManifest("zot-cve-test", "0.0.1")
 		So(err, ShouldBeNil)
 
 		found = false
@@ -811,9 +807,7 @@ func TestExpandedRepoInfo(t *testing.T) {
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries), ShouldNotEqual, 0)
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries[0].Layers), ShouldNotEqual, 0)
 
-		_, mdigest, _, err = testStorage.GetImageManifest("zot-test", "0.0.1")
-		So(err, ShouldBeNil)
-		testManifestDigest, err = digest.Parse(mdigest)
+		_, testManifestDigest, _, err = testStorage.GetImageManifest("zot-test", "0.0.1")
 		So(err, ShouldBeNil)
 
 		found = false
@@ -838,9 +832,7 @@ func TestExpandedRepoInfo(t *testing.T) {
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries), ShouldNotEqual, 0)
 		So(len(responseStruct.ExpandedRepoInfo.RepoInfo.ImageSummaries[0].Layers), ShouldNotEqual, 0)
 
-		_, mdigest, _, err = testStorage.GetImageManifest("zot-test", "0.0.1")
-		So(err, ShouldBeNil)
-		testManifestDigest, err = digest.Parse(mdigest)
+		_, testManifestDigest, _, err = testStorage.GetImageManifest("zot-test", "0.0.1")
 		So(err, ShouldBeNil)
 
 		found = false
@@ -852,7 +844,7 @@ func TestExpandedRepoInfo(t *testing.T) {
 		}
 		So(found, ShouldEqual, true)
 
-		var manifestDigest digest.Digest
+		var manifestDigest godigest.Digest
 		manifestDigest, _, _ = GetOciLayoutDigests("../../../../test/data/zot-test")
 
 		err = os.Remove(path.Join(rootDir, "zot-test/blobs/sha256", manifestDigest.Encoded()))
@@ -1042,7 +1034,7 @@ func TestDerivedImageList(t *testing.T) {
 			OS:           "linux",
 			RootFS: ispec.RootFS{
 				Type:    "layers",
-				DiffIDs: []digest.Digest{},
+				DiffIDs: []godigest.Digest{},
 			},
 			Author: "ZotUser",
 		}
@@ -1050,7 +1042,7 @@ func TestDerivedImageList(t *testing.T) {
 		configBlob, err := json.Marshal(config)
 		So(err, ShouldBeNil)
 
-		configDigest := digest.FromBytes(configBlob)
+		configDigest := godigest.FromBytes(configBlob)
 
 		layers := [][]byte{
 			{10, 11, 10, 11},
@@ -1070,17 +1062,17 @@ func TestDerivedImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 			},
@@ -1113,17 +1105,17 @@ func TestDerivedImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 			},
@@ -1161,12 +1153,12 @@ func TestDerivedImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 			},
@@ -1207,27 +1199,27 @@ func TestDerivedImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[3]),
+					Digest:    godigest.FromBytes(layers[3]),
 					Size:      int64(len(layers[3])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[4]),
+					Digest:    godigest.FromBytes(layers[4]),
 					Size:      int64(len(layers[4])),
 				},
 			},
@@ -1367,7 +1359,7 @@ func TestGetImageManifest(t *testing.T) {
 
 	Convey("Test nonexistent image", t, func() {
 		mockImageStore := mocks.MockedImageStore{
-			GetImageManifestFn: func(repo string, reference string) ([]byte, string, string, error) {
+			GetImageManifestFn: func(repo string, reference string) ([]byte, godigest.Digest, string, error) {
 				return []byte{}, "", "", ErrTestError
 			},
 		}
@@ -1437,7 +1429,7 @@ func TestBaseImageList(t *testing.T) {
 			OS:           "linux",
 			RootFS: ispec.RootFS{
 				Type:    "layers",
-				DiffIDs: []digest.Digest{},
+				DiffIDs: []godigest.Digest{},
 			},
 			Author: "ZotUser",
 		}
@@ -1445,7 +1437,7 @@ func TestBaseImageList(t *testing.T) {
 		configBlob, err := json.Marshal(config)
 		So(err, ShouldBeNil)
 
-		configDigest := digest.FromBytes(configBlob)
+		configDigest := godigest.FromBytes(configBlob)
 
 		layers := [][]byte{
 			{10, 11, 10, 11},
@@ -1466,22 +1458,22 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[3]),
+					Digest:    godigest.FromBytes(layers[3]),
 					Size:      int64(len(layers[3])),
 				},
 			},
@@ -1514,22 +1506,22 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[3]),
+					Digest:    godigest.FromBytes(layers[3]),
 					Size:      int64(len(layers[3])),
 				},
 			},
@@ -1567,12 +1559,12 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 			},
@@ -1610,12 +1602,12 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 			},
@@ -1656,27 +1648,27 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[2]),
+					Digest:    godigest.FromBytes(layers[2]),
 					Size:      int64(len(layers[2])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[3]),
+					Digest:    godigest.FromBytes(layers[3]),
 					Size:      int64(len(layers[3])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[4]),
+					Digest:    godigest.FromBytes(layers[4]),
 					Size:      int64(len(layers[4])),
 				},
 			},
@@ -1714,12 +1706,12 @@ func TestBaseImageList(t *testing.T) {
 			Layers: []ispec.Descriptor{
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[0]),
+					Digest:    godigest.FromBytes(layers[0]),
 					Size:      int64(len(layers[0])),
 				},
 				{
 					MediaType: "application/vnd.oci.image.layer.v1.tar",
-					Digest:    digest.FromBytes(layers[1]),
+					Digest:    godigest.FromBytes(layers[1]),
 					Size:      int64(len(layers[1])),
 				},
 			},
@@ -2685,7 +2677,7 @@ func TestImageList(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		var imageConfigInfo ispec.Image
-		imageConfigBuf, err := imageStore.GetBlobContent(repos[0], imageManifest.Config.Digest.String())
+		imageConfigBuf, err := imageStore.GetBlobContent(repos[0], imageManifest.Config.Digest)
 		So(err, ShouldBeNil)
 		err = json.Unmarshal(imageConfigBuf, &imageConfigInfo)
 		So(err, ShouldBeNil)
@@ -2747,7 +2739,7 @@ func TestImageList(t *testing.T) {
 			OS:           "linux",
 			RootFS: ispec.RootFS{
 				Type:    "layers",
-				DiffIDs: []digest.Digest{},
+				DiffIDs: []godigest.Digest{},
 			},
 			Author:  "ZotUser",
 			History: []ispec.History{},
@@ -2756,8 +2748,8 @@ func TestImageList(t *testing.T) {
 		configBlob, err := json.Marshal(config)
 		So(err, ShouldBeNil)
 
-		configDigest := digest.FromBytes(configBlob)
-		layerDigest := digest.FromString(invalid)
+		configDigest := godigest.FromBytes(configBlob)
+		layerDigest := godigest.FromString(invalid)
 		layerblob := []byte(invalid)
 		schemaVersion := 2
 		ispecManifest := ispec.Manifest{
@@ -2930,7 +2922,7 @@ func TestBuildImageInfo(t *testing.T) {
 			OS:           "linux",
 			RootFS: ispec.RootFS{
 				Type:    "layers",
-				DiffIDs: []digest.Digest{},
+				DiffIDs: []godigest.Digest{},
 			},
 			Author: "ZotUser",
 			History: []ispec.History{ // should contain 3 elements, 2 of which corresponding to layers
@@ -2949,8 +2941,8 @@ func TestBuildImageInfo(t *testing.T) {
 		configBlob, err := json.Marshal(config)
 		So(err, ShouldBeNil)
 
-		configDigest := digest.FromBytes(configBlob)
-		layerDigest := digest.FromString(invalid)
+		configDigest := godigest.FromBytes(configBlob)
+		layerDigest := godigest.FromString(invalid)
 		layerblob := []byte(invalid)
 		schemaVersion := 2
 		ispecManifest := ispec.Manifest{
@@ -2973,7 +2965,7 @@ func TestBuildImageInfo(t *testing.T) {
 		manifestLayersSize := ispecManifest.Layers[0].Size
 		manifestBlob, err := json.Marshal(ispecManifest)
 		So(err, ShouldBeNil)
-		manifestDigest := digest.FromBytes(manifestBlob)
+		manifestDigest := godigest.FromBytes(manifestBlob)
 		err = UploadImage(
 			Image{
 				Manifest: ispecManifest,
@@ -3107,7 +3099,7 @@ func TestRepoDBWhenSigningImages(t *testing.T) {
 			Convey("imageIsSignature fails", func() {
 				// make image store ignore the wrong format of the input
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", nil
 					},
 					DeleteImageManifestFn: func(repo, reference string) error {
@@ -3126,7 +3118,7 @@ func TestRepoDBWhenSigningImages(t *testing.T) {
 
 			Convey("image is a signature, AddManifestSignature fails", func() {
 				ctlr.RepoDB = mocks.RepoDBMock{
-					AddManifestSignatureFn: func(manifestDigest string, sm repodb.SignatureMetadata) error {
+					AddManifestSignatureFn: func(manifestDigest godigest.Digest, sm repodb.SignatureMetadata) error {
 						return ErrTestError
 					},
 				}
@@ -3177,7 +3169,7 @@ func TestRepoDBWhenPushingImages(t *testing.T) {
 
 		Convey("SetManifestMeta fails", func() {
 			ctlr.RepoDB = mocks.RepoDBMock{
-				SetManifestMetaFn: func(manifestDigest string, mm repodb.ManifestMetadata) error {
+				SetManifestMetaFn: func(manifestDigest godigest.Digest, mm repodb.ManifestMetadata) error {
 					return ErrTestError
 				},
 			}
@@ -3190,7 +3182,7 @@ func TestRepoDBWhenPushingImages(t *testing.T) {
 			ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
 				NewBlobUploadFn: ctlr.StoreController.DefaultStore.NewBlobUpload,
 				PutBlobChunkFn:  ctlr.StoreController.DefaultStore.PutBlobChunk,
-				GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+				GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 					return configBlob, nil
 				},
 				DeleteImageManifestFn: func(repo, reference string) error {
@@ -3213,7 +3205,7 @@ func TestRepoDBWhenPushingImages(t *testing.T) {
 
 		Convey("SetManifestMeta succeeds but SetRepoTag fails", func() {
 			ctlr.RepoDB = mocks.RepoDBMock{
-				SetRepoTagFn: func(repo, tag, manifestDigest string) error {
+				SetRepoTagFn: func(repo, tag string, manifestDigest godigest.Digest) error {
 					return ErrTestError
 				},
 			}
@@ -3227,7 +3219,7 @@ func TestRepoDBWhenPushingImages(t *testing.T) {
 			ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
 				NewBlobUploadFn: ctlr.StoreController.DefaultStore.NewBlobUpload,
 				PutBlobChunkFn:  ctlr.StoreController.DefaultStore.PutBlobChunk,
-				GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+				GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 					return configBlob, nil
 				},
 			}
@@ -3319,7 +3311,7 @@ func TestRepoDBWhenReadingImages(t *testing.T) {
 
 		Convey("Error when incrementing", func() {
 			ctlr.RepoDB = mocks.RepoDBMock{
-				IncrementManifestDownloadsFn: func(manifestDigest string) error {
+				IncrementManifestDownloadsFn: func(manifestDigest godigest.Digest) error {
 					return ErrTestError
 				},
 			}
@@ -3597,7 +3589,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 			// check notation signature
 			manifest1Blob, err := json.Marshal(manifest1)
 			So(err, ShouldBeNil)
-			manifest1Digest := digest.FromBytes(manifest1Blob)
+			manifest1Digest := godigest.FromBytes(manifest1Blob)
 			So(sigManifestContent.Subject, ShouldNotBeNil)
 			So(sigManifestContent.Subject.Digest.String(), ShouldEqual, manifest1Digest.String())
 
@@ -3624,7 +3616,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 		Convey("Deleting causes errors", func() {
 			Convey("error while backing up the manifest", func() {
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
-					GetImageManifestFn: func(repo, reference string) ([]byte, string, string, error) {
+					GetImageManifestFn: func(repo, reference string) ([]byte, godigest.Digest, string, error) {
 						return []byte{}, "", "", zerr.ErrRepoNotFound
 					},
 				}
@@ -3632,7 +3624,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 				So(resp, ShouldNotBeNil)
 				So(err, ShouldBeNil)
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
-					GetImageManifestFn: func(repo, reference string) ([]byte, string, string, error) {
+					GetImageManifestFn: func(repo, reference string) ([]byte, godigest.Digest, string, error) {
 						return []byte{}, "", "", zerr.ErrBadManifest
 					},
 				}
@@ -3641,7 +3633,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 				So(err, ShouldBeNil)
 
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
-					GetImageManifestFn: func(repo, reference string) ([]byte, string, string, error) {
+					GetImageManifestFn: func(repo, reference string) ([]byte, godigest.Digest, string, error) {
 						return []byte{}, "", "", zerr.ErrRepoNotFound
 					},
 				}
@@ -3652,7 +3644,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 
 			Convey("imageIsSignature fails", func() {
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", nil
 					},
 					DeleteImageManifestFn: func(repo, reference string) error {
@@ -3670,19 +3662,19 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
 					NewBlobUploadFn: ctlr.StoreController.DefaultStore.NewBlobUpload,
 					PutBlobChunkFn:  ctlr.StoreController.DefaultStore.PutBlobChunk,
-					GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+					GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 						configBlob, err := json.Marshal(ispec.Image{})
 						So(err, ShouldBeNil)
 
 						return configBlob, nil
 					},
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", nil
 					},
 					DeleteImageManifestFn: func(repo, reference string) error {
 						return nil
 					},
-					GetImageManifestFn: func(repo, reference string) ([]byte, string, string, error) {
+					GetImageManifestFn: func(repo, reference string) ([]byte, godigest.Digest, string, error) {
 						return []byte("{}"), "1", "1", nil
 					},
 				}
@@ -3698,19 +3690,19 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 				ctlr.StoreController.DefaultStore = mocks.MockedImageStore{
 					NewBlobUploadFn: ctlr.StoreController.DefaultStore.NewBlobUpload,
 					PutBlobChunkFn:  ctlr.StoreController.DefaultStore.PutBlobChunk,
-					GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+					GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 						configBlob, err := json.Marshal(ispec.Image{})
 						So(err, ShouldBeNil)
 
 						return configBlob, nil
 					},
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", ErrTestError
 					},
 					DeleteImageManifestFn: func(repo, reference string) error {
 						return nil
 					},
-					GetImageManifestFn: func(repo, reference string) ([]byte, string, string, error) {
+					GetImageManifestFn: func(repo, reference string) ([]byte, godigest.Digest, string, error) {
 						return []byte("{}"), "1", "1", nil
 					},
 				}
@@ -3732,7 +3724,7 @@ func TestRepoDBWhenDeletingImages(t *testing.T) {
 func updateManifestConfig(manifest ispec.Manifest, config ispec.Image) (ispec.Manifest, error) {
 	configBlob, err := json.Marshal(config)
 
-	configDigest := digest.FromBytes(configBlob)
+	configDigest := godigest.FromBytes(configBlob)
 	configSize := len(configBlob)
 
 	manifest.Config.Digest = configDigest
@@ -3746,7 +3738,7 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 
 	Convey("GetImageManifestSize fail", t, func() {
 		mockStoreController := mocks.MockedImageStore{
-			GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+			GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 				return []byte{}, ErrTestError
 			},
 		}
@@ -3760,7 +3752,7 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 
 	Convey("GetImageConfigSize: fail GetImageBlobManifest", t, func() {
 		mockStoreController := mocks.MockedImageStore{
-			GetBlobContentFn: func(repo, digest string) ([]byte, error) {
+			GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
 				return []byte{}, ErrTestError
 			},
 		}
@@ -3774,8 +3766,8 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 
 	Convey("GetImageConfigSize: config GetBlobContent fail", t, func() {
 		mockStoreController := mocks.MockedImageStore{
-			GetBlobContentFn: func(_, digest string) ([]byte, error) {
-				if digest == manifestDigest {
+			GetBlobContentFn: func(repo string, digest godigest.Digest) ([]byte, error) {
+				if digest.String() == manifestDigest {
 					return []byte{}, ErrTestError
 				}
 
@@ -4043,7 +4035,7 @@ func TestImageSummary(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		configBlob, errConfig := json.Marshal(config)
-		configDigest := digest.FromBytes(configBlob)
+		configDigest := godigest.FromBytes(configBlob)
 		So(errConfig, ShouldBeNil) // marshall success, config is valid JSON
 		go startServer(ctlr)
 		defer stopServer(ctlr)
@@ -4052,7 +4044,7 @@ func TestImageSummary(t *testing.T) {
 		manifestBlob, errMarsal := json.Marshal(manifest)
 		So(errMarsal, ShouldBeNil)
 		So(manifestBlob, ShouldNotBeNil)
-		manifestDigest := digest.FromBytes(manifestBlob)
+		manifestDigest := godigest.FromBytes(manifestBlob)
 		repoName := "test-repo" //nolint:goconst
 
 		tagTarget := "latest"
@@ -4097,7 +4089,7 @@ func TestImageSummary(t *testing.T) {
 		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Hex())
 		So(len(imgSummary.Layers), ShouldEqual, 1)
 		So(imgSummary.Layers[0].Digest, ShouldContainSubstring,
-			digest.FromBytes(layers[0]).Hex())
+			godigest.FromBytes(layers[0]).Hex())
 		So(imgSummary.LastUpdated, ShouldEqual, createdTime)
 		So(imgSummary.IsSigned, ShouldEqual, false)
 		So(imgSummary.Platform.Os, ShouldEqual, "linux")
@@ -4200,7 +4192,7 @@ func TestImageSummary(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		configBlob, errConfig := json.Marshal(config)
-		configDigest := digest.FromBytes(configBlob)
+		configDigest := godigest.FromBytes(configBlob)
 		So(errConfig, ShouldBeNil) // marshall success, config is valid JSON
 		go startServer(ctlr)
 		defer stopServer(ctlr)
@@ -4209,7 +4201,7 @@ func TestImageSummary(t *testing.T) {
 		manifestBlob, errMarsal := json.Marshal(manifest)
 		So(errMarsal, ShouldBeNil)
 		So(manifestBlob, ShouldNotBeNil)
-		manifestDigest := digest.FromBytes(manifestBlob)
+		manifestDigest := godigest.FromBytes(manifestBlob)
 		repoName := "test-repo" //nolint:goconst
 
 		tagTarget := "latest"
@@ -4255,7 +4247,7 @@ func TestImageSummary(t *testing.T) {
 		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Hex())
 		So(len(imgSummary.Layers), ShouldEqual, 1)
 		So(imgSummary.Layers[0].Digest, ShouldContainSubstring,
-			digest.FromBytes(layers[0]).Hex())
+			godigest.FromBytes(layers[0]).Hex())
 		So(imgSummary.LastUpdated, ShouldEqual, createdTime)
 		So(imgSummary.IsSigned, ShouldEqual, false)
 		So(imgSummary.Platform.Os, ShouldEqual, "linux")

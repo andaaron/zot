@@ -9,6 +9,7 @@ import (
 	"time"
 
 	glob "github.com/bmatcuk/doublestar/v4"
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -71,7 +72,7 @@ func NewBoltDBWrapper(params BoltDBParameters) (*BoltDBWrapper, error) {
 	}, nil
 }
 
-func (bdw BoltDBWrapper) SetManifestMeta(manifestDigest string, manifestMeta ManifestMetadata) error {
+func (bdw BoltDBWrapper) SetManifestMeta(manifestDigest godigest.Digest, manifestMeta ManifestMetadata) error {
 	// Q: should we check for correct input?
 	if manifestMeta.Signatures == nil {
 		manifestMeta.Signatures = map[string][]string{}
@@ -96,7 +97,7 @@ func (bdw BoltDBWrapper) SetManifestMeta(manifestDigest string, manifestMeta Man
 	return err
 }
 
-func (bdw BoltDBWrapper) GetManifestMeta(manifestDigest string) (ManifestMetadata, error) {
+func (bdw BoltDBWrapper) GetManifestMeta(manifestDigest godigest.Digest) (ManifestMetadata, error) {
 	var manifestMetadata ManifestMetadata
 
 	err := bdw.db.View(func(tx *bolt.Tx) error {
@@ -119,7 +120,7 @@ func (bdw BoltDBWrapper) GetManifestMeta(manifestDigest string) (ManifestMetadat
 	return manifestMetadata, err
 }
 
-func (bdw BoltDBWrapper) SetRepoTag(repo string, tag string, manifestDigest string) error {
+func (bdw BoltDBWrapper) SetRepoTag(repo string, tag string, manifestDigest godigest.Digest) error {
 	if err := validateRepoTagInput(repo, tag, manifestDigest); err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func (bdw BoltDBWrapper) SetRepoTag(repo string, tag string, manifestDigest stri
 			repoMeta := RepoMetadata{
 				Name: repo,
 				Tags: map[string]string{
-					tag: manifestDigest,
+					tag: manifestDigest.String(),
 				},
 			}
 
@@ -155,7 +156,7 @@ func (bdw BoltDBWrapper) SetRepoTag(repo string, tag string, manifestDigest stri
 			return err
 		}
 
-		repoMeta.Tags[tag] = manifestDigest
+		repoMeta.Tags[tag] = manifestDigest.String()
 
 		repoMetaBlob, err = json.Marshal(repoMeta)
 		if err != nil {
@@ -168,7 +169,7 @@ func (bdw BoltDBWrapper) SetRepoTag(repo string, tag string, manifestDigest stri
 	return err
 }
 
-func validateRepoTagInput(repo, tag, manifestDigest string) error {
+func validateRepoTagInput(repo, tag string, manifestDigest godigest.Digest) error {
 	if repo == "" {
 		return errors.New("repodb: repo name can't be empty string")
 	}
@@ -435,7 +436,7 @@ func (bdw BoltDBWrapper) GetMultipleRepoMeta(ctx context.Context, filter func(re
 	return foundRepos, err
 }
 
-func (bdw BoltDBWrapper) IncrementManifestDownloads(manifestDigest string) error {
+func (bdw BoltDBWrapper) IncrementManifestDownloads(manifestDigest godigest.Digest) error {
 	err := bdw.db.Update(func(tx *bolt.Tx) error {
 		buck := tx.Bucket([]byte(ManifestMetadataBucket))
 
@@ -464,7 +465,7 @@ func (bdw BoltDBWrapper) IncrementManifestDownloads(manifestDigest string) error
 	return err
 }
 
-func (bdw BoltDBWrapper) AddManifestSignature(manifestDigest string, sigMeta SignatureMetadata) error {
+func (bdw BoltDBWrapper) AddManifestSignature(manifestDigest godigest.Digest, sigMeta SignatureMetadata) error {
 	err := bdw.db.Update(func(tx *bolt.Tx) error {
 		buck := tx.Bucket([]byte(ManifestMetadataBucket))
 
@@ -481,7 +482,7 @@ func (bdw BoltDBWrapper) AddManifestSignature(manifestDigest string, sigMeta Sig
 		}
 
 		manifestMeta.Signatures[sigMeta.SignatureType] = append(manifestMeta.Signatures[sigMeta.SignatureType],
-			sigMeta.SignatureDigest)
+			sigMeta.SignatureDigest.String())
 
 		manifestMetaBlob, err = json.Marshal(manifestMeta)
 		if err != nil {
@@ -494,7 +495,7 @@ func (bdw BoltDBWrapper) AddManifestSignature(manifestDigest string, sigMeta Sig
 	return err
 }
 
-func (bdw BoltDBWrapper) DeleteSignature(manifestDigest string, sigMeta SignatureMetadata) error {
+func (bdw BoltDBWrapper) DeleteSignature(manifestDigest godigest.Digest, sigMeta SignatureMetadata) error {
 	err := bdw.db.Update(func(tx *bolt.Tx) error {
 		buck := tx.Bucket([]byte(ManifestMetadataBucket))
 
@@ -512,8 +513,8 @@ func (bdw BoltDBWrapper) DeleteSignature(manifestDigest string, sigMeta Signatur
 
 		sigType := sigMeta.SignatureType
 
-		for i, v := range manifestMeta.Signatures[sigType] {
-			if v == sigMeta.SignatureDigest {
+		for i, sig := range manifestMeta.Signatures[sigType] {
+			if sig == sigMeta.SignatureDigest.String() {
 				signaturesCount := len(manifestMeta.Signatures[sigType])
 
 				if signaturesCount < 1 {

@@ -1,6 +1,10 @@
 package repodb
 
-import "context"
+import (
+	"context"
+
+	godigest "github.com/opencontainers/go-digest"
+)
 
 // MetadataDB.
 const (
@@ -26,7 +30,7 @@ type RepoDB interface { //nolint:interfacebloat
 	SetRepoLogo(repo string, logoPath string) error
 
 	// SetRepoTag sets the tag of a manifest in the tag list of a repo
-	SetRepoTag(repo string, tag string, manifestDigest string) error
+	SetRepoTag(repo string, tag string, manifestDigest godigest.Digest) error
 
 	// DeleteRepoTag delets the tag from the tag list of a repo
 	DeleteRepoTag(repo string, tag string) error
@@ -40,19 +44,19 @@ type RepoDB interface { //nolint:interfacebloat
 		[]RepoMetadata, error)
 
 	// GetManifestMeta returns ManifestMetadata for a given manifest from the database
-	GetManifestMeta(manifestDigest string) (ManifestMetadata, error)
+	GetManifestMeta(manifestDigest godigest.Digest) (ManifestMetadata, error)
 
 	// GetManifestMeta sets ManifestMetadata for a given manifest in the database
-	SetManifestMeta(manifestDigest string, mm ManifestMetadata) error
+	SetManifestMeta(manifestDigest godigest.Digest, mm ManifestMetadata) error
 
 	// IncrementManifestDownloads adds 1 to the download count of a manifest
-	IncrementManifestDownloads(manifestDigest string) error
+	IncrementManifestDownloads(manifestDigest godigest.Digest) error
 
 	// AddManifestSignature adds signature metadata to a given manifest in the database
-	AddManifestSignature(manifestDigest string, sm SignatureMetadata) error
+	AddManifestSignature(manifestDigest godigest.Digest, sm SignatureMetadata) error
 
 	// DeleteSignature delets signature metadata to a given manifest from the database
-	DeleteSignature(manifestDigest string, sm SignatureMetadata) error
+	DeleteSignature(manifestDigest godigest.Digest, sm SignatureMetadata) error
 
 	// SearchRepos searches for repos given a search string
 	SearchRepos(ctx context.Context, searchText string, filter Filter, requestedPage PageInput) (
@@ -101,7 +105,7 @@ type RepoMetadata struct {
 
 type SignatureMetadata struct {
 	SignatureType   string
-	SignatureDigest string
+	SignatureDigest godigest.Digest
 }
 
 type SortCriteria string

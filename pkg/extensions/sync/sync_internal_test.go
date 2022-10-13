@@ -390,7 +390,7 @@ func TestSyncInternal(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		canBeSkipped, err = canSkipCosignSignature(testImage, testImageTag,
-			testImageManifestDigest, &cosignManifest, imageStore, log)
+			testImageManifestDigest.String(), &cosignManifest, imageStore, log)
 		So(err, ShouldBeNil)
 		So(canBeSkipped, ShouldBeFalse)
 	})
@@ -471,7 +471,7 @@ func TestSyncInternal(t *testing.T) {
 
 				for _, layer := range layers {
 					// upload layer
-					_, _, err := testImageStore.FullBlobUpload(repo, bytes.NewReader(layer), godigest.FromBytes(layer).String())
+					_, _, err := testImageStore.FullBlobUpload(repo, bytes.NewReader(layer), godigest.FromBytes(layer))
 					So(err, ShouldBeNil)
 				}
 
@@ -480,7 +480,7 @@ func TestSyncInternal(t *testing.T) {
 
 				configDigest := godigest.FromBytes(configContent)
 
-				_, _, err = testImageStore.FullBlobUpload(repo, bytes.NewReader(configContent), configDigest.String())
+				_, _, err = testImageStore.FullBlobUpload(repo, bytes.NewReader(configContent), configDigest)
 				So(err, ShouldBeNil)
 
 				manifestContent, err := json.Marshal(manifest)

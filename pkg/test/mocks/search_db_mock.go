@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 
+	godigest "github.com/opencontainers/go-digest"
 	"zotregistry.io/zot/pkg/storage/repodb"
 )
 
@@ -17,7 +18,7 @@ type RepoDBMock struct {
 
 	SetRepoLogoFn func(repo string, logoPath string) error
 
-	SetRepoTagFn func(repo string, tag string, manifestDigest string) error
+	SetRepoTagFn func(repo string, tag string, manifestDigest godigest.Digest) error
 
 	DeleteRepoTagFn func(repo string, tag string) error
 
@@ -26,15 +27,15 @@ type RepoDBMock struct {
 	GetMultipleRepoMetaFn func(ctx context.Context, filter func(repoMeta repodb.RepoMetadata) bool,
 		requestedPage repodb.PageInput) ([]repodb.RepoMetadata, error)
 
-	GetManifestMetaFn func(manifestDigest string) (repodb.ManifestMetadata, error)
+	GetManifestMetaFn func(manifestDigest godigest.Digest) (repodb.ManifestMetadata, error)
 
-	SetManifestMetaFn func(manifestDigest string, mm repodb.ManifestMetadata) error
+	SetManifestMetaFn func(manifestDigest godigest.Digest, mm repodb.ManifestMetadata) error
 
-	IncrementManifestDownloadsFn func(manifestDigest string) error
+	IncrementManifestDownloadsFn func(manifestDigest godigest.Digest) error
 
-	AddManifestSignatureFn func(manifestDigest string, sm repodb.SignatureMetadata) error
+	AddManifestSignatureFn func(manifestDigest godigest.Digest, sm repodb.SignatureMetadata) error
 
-	DeleteSignatureFn func(manifestDigest string, sm repodb.SignatureMetadata) error
+	DeleteSignatureFn func(manifestDigest godigest.Digest, sm repodb.SignatureMetadata) error
 
 	SearchReposFn func(ctx context.Context, searchText string, filter repodb.Filter, requestedPage repodb.PageInput) (
 		[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, error)
@@ -95,7 +96,7 @@ func (sdm RepoDBMock) SetRepoLogo(repo string, logoPath string) error {
 	return nil
 }
 
-func (sdm RepoDBMock) SetRepoTag(repo string, tag string, manifestDigest string) error {
+func (sdm RepoDBMock) SetRepoTag(repo string, tag string, manifestDigest godigest.Digest) error {
 	if sdm.SetRepoTagFn != nil {
 		return sdm.SetRepoTagFn(repo, tag, manifestDigest)
 	}
@@ -129,7 +130,7 @@ func (sdm RepoDBMock) GetMultipleRepoMeta(ctx context.Context, filter func(repoM
 	return []repodb.RepoMetadata{}, nil
 }
 
-func (sdm RepoDBMock) GetManifestMeta(manifestDigest string) (repodb.ManifestMetadata, error) {
+func (sdm RepoDBMock) GetManifestMeta(manifestDigest godigest.Digest) (repodb.ManifestMetadata, error) {
 	if sdm.GetManifestMetaFn != nil {
 		return sdm.GetManifestMetaFn(manifestDigest)
 	}
@@ -137,7 +138,7 @@ func (sdm RepoDBMock) GetManifestMeta(manifestDigest string) (repodb.ManifestMet
 	return repodb.ManifestMetadata{}, nil
 }
 
-func (sdm RepoDBMock) SetManifestMeta(manifestDigest string, mm repodb.ManifestMetadata) error {
+func (sdm RepoDBMock) SetManifestMeta(manifestDigest godigest.Digest, mm repodb.ManifestMetadata) error {
 	if sdm.SetManifestMetaFn != nil {
 		return sdm.SetManifestMetaFn(manifestDigest, mm)
 	}
@@ -145,7 +146,7 @@ func (sdm RepoDBMock) SetManifestMeta(manifestDigest string, mm repodb.ManifestM
 	return nil
 }
 
-func (sdm RepoDBMock) IncrementManifestDownloads(manifestDigest string) error {
+func (sdm RepoDBMock) IncrementManifestDownloads(manifestDigest godigest.Digest) error {
 	if sdm.IncrementManifestDownloadsFn != nil {
 		return sdm.IncrementManifestDownloadsFn(manifestDigest)
 	}
@@ -153,7 +154,7 @@ func (sdm RepoDBMock) IncrementManifestDownloads(manifestDigest string) error {
 	return nil
 }
 
-func (sdm RepoDBMock) AddManifestSignature(manifestDigest string, sm repodb.SignatureMetadata) error {
+func (sdm RepoDBMock) AddManifestSignature(manifestDigest godigest.Digest, sm repodb.SignatureMetadata) error {
 	if sdm.AddManifestSignatureFn != nil {
 		return sdm.AddManifestSignatureFn(manifestDigest, sm)
 	}
@@ -161,7 +162,7 @@ func (sdm RepoDBMock) AddManifestSignature(manifestDigest string, sm repodb.Sign
 	return nil
 }
 
-func (sdm RepoDBMock) DeleteSignature(manifestDigest string, sm repodb.SignatureMetadata) error {
+func (sdm RepoDBMock) DeleteSignature(manifestDigest godigest.Digest, sm repodb.SignatureMetadata) error {
 	if sdm.DeleteSignatureFn != nil {
 		return sdm.DeleteSignatureFn(manifestDigest, sm)
 	}

@@ -461,7 +461,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 			err = stwr.Close()
 			So(err, ShouldBeNil)
 
-			err = imgStore.FinishBlobUpload(testImage, upload, buf, digest.String())
+			err = imgStore.FinishBlobUpload(testImage, upload, buf, digest)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -512,10 +512,10 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 			_, err = imgStore.PutBlobChunk(testImage, upload, 0, int64(buflen), buf)
 			So(err, ShouldNotBeNil)
 
-			err = imgStore.FinishBlobUpload(testImage, upload, buf, digest.String())
+			err = imgStore.FinishBlobUpload(testImage, upload, buf, digest)
 			So(err, ShouldNotBeNil)
 
-			err = imgStore.DeleteBlob(testImage, digest.String())
+			err = imgStore.DeleteBlob(testImage, digest)
 			So(err, ShouldNotBeNil)
 
 			err = imgStore.DeleteBlobUpload(testImage, upload)
@@ -533,7 +533,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 			_, _, err = imgStore.FullBlobUpload(testImage, bytes.NewBuffer([]byte{}), "inexistent")
 			So(err, ShouldNotBeNil)
 
-			_, _, err = imgStore.CheckBlob(testImage, digest.String())
+			_, _, err = imgStore.CheckBlob(testImage, digest)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -729,7 +729,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte("test"))
-			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d.String())
+			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -744,7 +744,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte("test"))
-			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d.String())
+			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -755,7 +755,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte("test"))
-			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d.String())
+			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -766,7 +766,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d.String())
+			err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -777,14 +777,14 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d.String())
+			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
 		Convey("Test FullBlobUpload2", func(c C) {
 			imgStore = createMockStorage(testDir, tdir, false, &StorageDriverMock{})
 			d := godigest.FromBytes([]byte(" "))
-			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d.String())
+			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -795,7 +795,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d.String())
+			_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -806,7 +806,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			_, _, err := imgStore.GetBlob(testImage, d.String(), "")
+			_, _, err := imgStore.GetBlob(testImage, d, "")
 			So(err, ShouldNotBeNil)
 		})
 
@@ -817,7 +817,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			err := imgStore.DeleteBlob(testImage, d.String())
+			err := imgStore.DeleteBlob(testImage, d)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -828,7 +828,7 @@ func TestNegativeCasesObjectsStorage(t *testing.T) {
 				},
 			})
 			d := godigest.FromBytes([]byte(""))
-			_, err := imgStore.GetReferrers(testImage, d.String(), "application/image")
+			_, err := imgStore.GetReferrers(testImage, d, "application/image")
 			So(err, ShouldNotBeNil)
 			So(err, ShouldEqual, zerr.ErrMethodNotSupported)
 		})
@@ -862,18 +862,18 @@ func TestS3Dedupe(t *testing.T) {
 		blob, err := imgStore.PutBlobChunkStreamed("dedupe1", upload, buf)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
-		blobDigest1 := strings.Split(digest.String(), ":")[1]
+		blobDigest1 := digest
 		So(blobDigest1, ShouldNotBeEmpty)
 
-		err = imgStore.FinishBlobUpload("dedupe1", upload, buf, digest.String())
+		err = imgStore.FinishBlobUpload("dedupe1", upload, buf, digest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
-		_, checkBlobSize1, err := imgStore.CheckBlob("dedupe1", digest.String())
+		_, checkBlobSize1, err := imgStore.CheckBlob("dedupe1", digest)
 		So(checkBlobSize1, ShouldBeGreaterThan, 0)
 		So(err, ShouldBeNil)
 
-		blobReadCloser, getBlobSize1, err := imgStore.GetBlob("dedupe1", digest.String(),
+		blobReadCloser, getBlobSize1, err := imgStore.GetBlob("dedupe1", digest,
 			"application/vnd.oci.image.layer.v1.tar+gzip")
 		So(getBlobSize1, ShouldBeGreaterThan, 0)
 		So(err, ShouldBeNil)
@@ -881,10 +881,10 @@ func TestS3Dedupe(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		cblob, cdigest := test.GetRandomImageConfig()
-		_, clen, err := imgStore.FullBlobUpload("dedupe1", bytes.NewReader(cblob), cdigest.String())
+		_, clen, err := imgStore.FullBlobUpload("dedupe1", bytes.NewReader(cblob), cdigest)
 		So(err, ShouldBeNil)
 		So(clen, ShouldEqual, len(cblob))
-		hasBlob, _, err := imgStore.CheckBlob("dedupe1", cdigest.String())
+		hasBlob, _, err := imgStore.CheckBlob("dedupe1", cdigest)
 		So(err, ShouldBeNil)
 		So(hasBlob, ShouldEqual, true)
 
@@ -927,18 +927,18 @@ func TestS3Dedupe(t *testing.T) {
 		blob, err = imgStore.PutBlobChunkStreamed("dedupe2", upload, buf)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
-		blobDigest2 := strings.Split(digest.String(), ":")[1]
+		blobDigest2 := digest
 		So(blobDigest2, ShouldNotBeEmpty)
 
-		err = imgStore.FinishBlobUpload("dedupe2", upload, buf, digest.String())
+		err = imgStore.FinishBlobUpload("dedupe2", upload, buf, digest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
-		_, checkBlobSize2, err := imgStore.CheckBlob("dedupe2", digest.String())
+		_, checkBlobSize2, err := imgStore.CheckBlob("dedupe2", digest)
 		So(err, ShouldBeNil)
 		So(checkBlobSize2, ShouldBeGreaterThan, 0)
 
-		blobReadCloser, getBlobSize2, err := imgStore.GetBlob("dedupe2", digest.String(),
+		blobReadCloser, getBlobSize2, err := imgStore.GetBlob("dedupe2", digest,
 			"application/vnd.oci.image.layer.v1.tar+gzip")
 		So(err, ShouldBeNil)
 		So(getBlobSize2, ShouldBeGreaterThan, 0)
@@ -948,10 +948,10 @@ func TestS3Dedupe(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		cblob, cdigest = test.GetRandomImageConfig()
-		_, clen, err = imgStore.FullBlobUpload("dedupe2", bytes.NewReader(cblob), cdigest.String())
+		_, clen, err = imgStore.FullBlobUpload("dedupe2", bytes.NewReader(cblob), cdigest)
 		So(err, ShouldBeNil)
 		So(clen, ShouldEqual, len(cblob))
-		hasBlob, _, err = imgStore.CheckBlob("dedupe2", cdigest.String())
+		hasBlob, _, err = imgStore.CheckBlob("dedupe2", cdigest)
 		So(err, ShouldBeNil)
 		So(hasBlob, ShouldEqual, true)
 
@@ -980,10 +980,12 @@ func TestS3Dedupe(t *testing.T) {
 		_, _, _, err = imgStore.GetImageManifest("dedupe2", digest.String())
 		So(err, ShouldBeNil)
 
-		fi1, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256", blobDigest1))
+		fi1, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256",
+			blobDigest1.Encoded()))
 		So(err, ShouldBeNil)
 
-		fi2, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256", blobDigest2))
+		fi2, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256",
+			blobDigest2.Encoded()))
 		So(err, ShouldBeNil)
 
 		// original blob should have the real content of blob
@@ -994,23 +996,26 @@ func TestS3Dedupe(t *testing.T) {
 
 		Convey("Check that delete blobs moves the real content to the next contenders", func() {
 			// if we delete blob1, the content should be moved to blob2
-			err = imgStore.DeleteBlob("dedupe1", "sha256:"+blobDigest1)
+			err = imgStore.DeleteBlob("dedupe1", blobDigest1)
 			So(err, ShouldBeNil)
 
-			_, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256", blobDigest1))
+			_, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256",
+				blobDigest1.Encoded()))
 			So(err, ShouldNotBeNil)
 
-			fi2, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256", blobDigest2))
+			fi2, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256",
+				blobDigest2.Encoded()))
 			So(err, ShouldBeNil)
 
 			So(fi2.Size(), ShouldBeGreaterThan, 0)
 			// the second blob should now be equal to the deleted blob.
 			So(fi2.Size(), ShouldEqual, fi1.Size())
 
-			err = imgStore.DeleteBlob("dedupe2", "sha256:"+blobDigest2)
+			err = imgStore.DeleteBlob("dedupe2", blobDigest2)
 			So(err, ShouldBeNil)
 
-			_, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256", blobDigest2))
+			_, err = storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256",
+				blobDigest2.Encoded()))
 			So(err, ShouldNotBeNil)
 		})
 
@@ -1041,43 +1046,43 @@ func TestS3Dedupe(t *testing.T) {
 			blob, err = imgStore.PutBlobChunkStreamed("dedupe3", upload, buf)
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
-			blobDigest2 := strings.Split(digest.String(), ":")[1]
+			blobDigest2 := digest
 			So(blobDigest2, ShouldNotBeEmpty)
 
-			err = imgStore.FinishBlobUpload("dedupe3", upload, buf, digest.String())
+			err = imgStore.FinishBlobUpload("dedupe3", upload, buf, digest)
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
-			_, _, err = imgStore.CheckBlob("dedupe3", digest.String())
+			_, _, err = imgStore.CheckBlob("dedupe3", digest)
 			So(err, ShouldBeNil)
 
 			// check that we retrieve the real dedupe2/blob (which is deduped earlier - 0 size) when switching to dedupe false
-			blobReadCloser, getBlobSize2, err = imgStore.GetBlob("dedupe2", digest.String(),
+			blobReadCloser, getBlobSize2, err = imgStore.GetBlob("dedupe2", digest,
 				"application/vnd.oci.image.layer.v1.tar+gzip")
 			So(err, ShouldBeNil)
 			So(getBlobSize1, ShouldEqual, getBlobSize2)
 			err = blobReadCloser.Close()
 			So(err, ShouldBeNil)
 
-			_, checkBlobSize2, err := imgStore.CheckBlob("dedupe2", digest.String())
+			_, checkBlobSize2, err := imgStore.CheckBlob("dedupe2", digest)
 			So(err, ShouldBeNil)
 			So(checkBlobSize2, ShouldBeGreaterThan, 0)
 			So(checkBlobSize2, ShouldEqual, getBlobSize2)
 
-			_, getBlobSize3, err := imgStore.GetBlob("dedupe3", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip")
+			_, getBlobSize3, err := imgStore.GetBlob("dedupe3", digest, "application/vnd.oci.image.layer.v1.tar+gzip")
 			So(err, ShouldBeNil)
 			So(getBlobSize1, ShouldEqual, getBlobSize3)
 
-			_, checkBlobSize3, err := imgStore.CheckBlob("dedupe3", digest.String())
+			_, checkBlobSize3, err := imgStore.CheckBlob("dedupe3", digest)
 			So(err, ShouldBeNil)
 			So(checkBlobSize3, ShouldBeGreaterThan, 0)
 			So(checkBlobSize3, ShouldEqual, getBlobSize3)
 
 			cblob, cdigest = test.GetRandomImageConfig()
-			_, clen, err = imgStore.FullBlobUpload("dedupe3", bytes.NewReader(cblob), cdigest.String())
+			_, clen, err = imgStore.FullBlobUpload("dedupe3", bytes.NewReader(cblob), cdigest)
 			So(err, ShouldBeNil)
 			So(clen, ShouldEqual, len(cblob))
-			hasBlob, _, err = imgStore.CheckBlob("dedupe3", cdigest.String())
+			hasBlob, _, err = imgStore.CheckBlob("dedupe3", cdigest)
 			So(err, ShouldBeNil)
 			So(hasBlob, ShouldEqual, true)
 
@@ -1106,14 +1111,17 @@ func TestS3Dedupe(t *testing.T) {
 			_, _, _, err = imgStore.GetImageManifest("dedupe3", digest.String())
 			So(err, ShouldBeNil)
 
-			fi1, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256", blobDigest1))
+			fi1, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe1", "blobs", "sha256",
+				blobDigest1.Encoded()))
 			So(err, ShouldBeNil)
 
-			fi2, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256", blobDigest1))
+			fi2, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe2", "blobs", "sha256",
+				blobDigest1.Encoded()))
 			So(err, ShouldBeNil)
 			So(fi2.Size(), ShouldEqual, 0)
 
-			fi3, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe3", "blobs", "sha256", blobDigest2))
+			fi3, err := storeDriver.Stat(context.Background(), path.Join(testDir, "dedupe3", "blobs", "sha256",
+				blobDigest2.Encoded()))
 			So(err, ShouldBeNil)
 
 			// the new blob with dedupe false should be equal with the origin blob from dedupe1
@@ -1150,54 +1158,54 @@ func TestS3PullRange(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
-		err = imgStore.FinishBlobUpload("index", upload, buf, digest.String())
+		err = imgStore.FinishBlobUpload("index", upload, buf, digest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
 		Convey("Without Dedupe", func() {
-			reader, _, _, err := imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, -1)
+			reader, _, _, err := imgStore.GetBlobPartial("index", digest, "*/*", 0, -1)
 			So(err, ShouldBeNil)
 			rdbuf, err := io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "application/octet-stream", 0, -1)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "application/octet-stream", 0, -1)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, 100)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 0, 100)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, 10)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 0, 10)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, 0)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 0, 0)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content[0:1])
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, 1)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 0, 1)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content[0:2])
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 2, 3)
+			reader, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 2, 3)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
@@ -1220,53 +1228,53 @@ func TestS3PullRange(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
-			err = imgStore.FinishBlobUpload("dupindex", upload, buf, digest.String())
+			err = imgStore.FinishBlobUpload("dupindex", upload, buf, digest)
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
-			reader, _, _, err := imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 0, -1)
+			reader, _, _, err := imgStore.GetBlobPartial("dupindex", digest, "*/*", 0, -1)
 			So(err, ShouldBeNil)
 			rdbuf, err := io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "application/octet-stream", 0, -1)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "application/octet-stream", 0, -1)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 0, 100)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 0, 100)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 0, 10)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 0, 10)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content)
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 0, 0)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 0, 0)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content[0:1])
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 0, 1)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 0, 1)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
 			So(rdbuf, ShouldResemble, content[0:2])
 			reader.Close()
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 2, 3)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 2, 3)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
@@ -1274,10 +1282,10 @@ func TestS3PullRange(t *testing.T) {
 			reader.Close()
 
 			// delete original blob
-			err = imgStore.DeleteBlob("index", digest.String())
+			err = imgStore.DeleteBlob("index", digest)
 			So(err, ShouldBeNil)
 
-			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest.String(), "*/*", 2, 3)
+			reader, _, _, err = imgStore.GetBlobPartial("dupindex", digest, "*/*", 2, 3)
 			So(err, ShouldBeNil)
 			rdbuf, err = io.ReadAll(reader)
 			So(err, ShouldBeNil)
@@ -1292,7 +1300,7 @@ func TestS3PullRange(t *testing.T) {
 			content := []byte("invalid content")
 			digest := godigest.FromBytes(content)
 
-			_, _, _, err = imgStore.GetBlobPartial("index", digest.String(), "*/*", 0, -1)
+			_, _, _, err = imgStore.GetBlobPartial("index", digest, "*/*", 0, -1)
 			So(err, ShouldNotBeNil)
 		})
 	})
@@ -1328,7 +1336,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 		bdgst1 := digest
 		bsize1 := len(content)
 
-		err = imgStore.FinishBlobUpload("index", upload, buf, digest.String())
+		err = imgStore.FinishBlobUpload("index", upload, buf, digest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
@@ -1344,7 +1352,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
-		err = imgStore.FinishBlobUpload("index", upload, buf, cdigest.String())
+		err = imgStore.FinishBlobUpload("index", upload, buf, cdigest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
@@ -1386,7 +1394,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
-		err = imgStore.FinishBlobUpload("index", upload, buf, cdigest.String())
+		err = imgStore.FinishBlobUpload("index", upload, buf, cdigest)
 		So(err, ShouldBeNil)
 		So(blob, ShouldEqual, buflen)
 
@@ -1428,7 +1436,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
-			err = imgStore.FinishBlobUpload("index", upload, buf, cdigest.String())
+			err = imgStore.FinishBlobUpload("index", upload, buf, cdigest)
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
@@ -1492,7 +1500,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
-			err = imgStore.FinishBlobUpload("index", upload, buf, cdigest.String())
+			err = imgStore.FinishBlobUpload("index", upload, buf, cdigest)
 			So(err, ShouldBeNil)
 			So(blob, ShouldEqual, buflen)
 
@@ -1642,7 +1650,7 @@ func TestS3ManifestImageIndex(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(blob, ShouldEqual, buflen)
 
-				err = imgStore.FinishBlobUpload("index", upload, buf, digest.String())
+				err = imgStore.FinishBlobUpload("index", upload, buf, digest)
 				So(err, ShouldBeNil)
 				So(blob, ShouldEqual, buflen)
 
@@ -1888,7 +1896,7 @@ func TestS3DedupeErr(t *testing.T) {
 		err := imgStore.DedupeBlob("repo", digest, "dst")
 		So(err, ShouldBeNil)
 
-		_, _, err = imgStore.CheckBlob("repo", digest.String())
+		_, _, err = imgStore.CheckBlob("repo", digest)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -1909,7 +1917,7 @@ func TestS3DedupeErr(t *testing.T) {
 		err := imgStore.DedupeBlob("repo", digest, "dst")
 		So(err, ShouldBeNil)
 
-		_, _, err = imgStore.CheckBlob("repo", digest.String())
+		_, _, err = imgStore.CheckBlob("repo", digest)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -1927,7 +1935,7 @@ func TestS3DedupeErr(t *testing.T) {
 		err := imgStore.DedupeBlob("repo", digest, "dst")
 		So(err, ShouldBeNil)
 
-		_, _, err = imgStore.CheckBlob("repo", digest.String())
+		_, _, err = imgStore.CheckBlob("repo", digest)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -1964,10 +1972,10 @@ func TestS3DedupeErr(t *testing.T) {
 			},
 		})
 
-		_, _, err = imgStore.GetBlob("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip")
+		_, _, err = imgStore.GetBlob("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip")
 		So(err, ShouldNotBeNil)
 
-		_, _, _, err = imgStore.GetBlobPartial("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
+		_, _, _, err = imgStore.GetBlobPartial("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -2011,10 +2019,10 @@ func TestS3DedupeErr(t *testing.T) {
 			},
 		})
 
-		_, _, err = imgStore.GetBlob("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip")
+		_, _, err = imgStore.GetBlob("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip")
 		So(err, ShouldNotBeNil)
 
-		_, _, _, err = imgStore.GetBlobPartial("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
+		_, _, _, err = imgStore.GetBlobPartial("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -2034,10 +2042,10 @@ func TestS3DedupeErr(t *testing.T) {
 			},
 		})
 
-		_, _, err = imgStore.GetBlob("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip")
+		_, _, err = imgStore.GetBlob("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip")
 		So(err, ShouldNotBeNil)
 
-		_, _, _, err = imgStore.GetBlobPartial("repo2", digest.String(), "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
+		_, _, _, err = imgStore.GetBlobPartial("repo2", digest, "application/vnd.oci.image.layer.v1.tar+gzip", 0, 1)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -2069,10 +2077,10 @@ func TestS3DedupeErr(t *testing.T) {
 		err := imgStore.DedupeBlob("repo", digest, blobPath)
 		So(err, ShouldBeNil)
 
-		_, _, err = imgStore.CheckBlob("repo2", digest.String())
+		_, _, err = imgStore.CheckBlob("repo2", digest)
 		So(err, ShouldBeNil)
 
-		err = imgStore.DeleteBlob("repo", digest.String())
+		err = imgStore.DeleteBlob("repo", digest)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -2084,7 +2092,7 @@ func TestS3DedupeErr(t *testing.T) {
 			},
 		})
 		d := godigest.FromBytes([]byte(""))
-		_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d.String())
+		_, _, err := imgStore.FullBlobUpload(testImage, io.NopCloser(strings.NewReader("")), d)
 		So(err, ShouldNotBeNil)
 	})
 
@@ -2096,7 +2104,7 @@ func TestS3DedupeErr(t *testing.T) {
 			},
 		})
 		d := godigest.FromBytes([]byte(""))
-		err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d.String())
+		err := imgStore.FinishBlobUpload(testImage, "uuid", io.NopCloser(strings.NewReader("")), d)
 		So(err, ShouldNotBeNil)
 	})
 }

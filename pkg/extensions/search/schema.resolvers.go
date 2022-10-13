@@ -6,7 +6,6 @@ package search
 import (
 	"context"
 
-	godigest "github.com/opencontainers/go-digest"
 	"zotregistry.io/zot/pkg/extensions/search/common"
 	"zotregistry.io/zot/pkg/extensions/search/convert"
 	"zotregistry.io/zot/pkg/extensions/search/gql_generated"
@@ -120,11 +119,11 @@ func (r *queryResolver) ImageListWithCVEFixed(ctx context.Context, id string, im
 	}
 
 	for _, tag := range tagsInfo {
-		digest := godigest.Digest(tag.Digest)
+		digest := tag.Digest
 
 		manifest, err := olu.GetImageBlobManifest(image, digest)
 		if err != nil {
-			r.log.Error().Err(err).Str("repo", image).Str("digest", tag.Digest).
+			r.log.Error().Err(err).Str("repo", image).Str("digest", tag.Digest.String()).
 				Msg("extension api: error reading manifest")
 
 			return unaffectedImages, err
