@@ -8,9 +8,9 @@ import (
 	"context"
 	"strings"
 
+	//nolint:gci
 	"github.com/99designs/gqlgen/graphql"
-	glob "github.com/bmatcuk/doublestar/v4"            //nolint:gci
-	v1 "github.com/google/go-containerregistry/pkg/v1" //nolint:gci
+	glob "github.com/bmatcuk/doublestar/v4" //nolint:gci
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -108,7 +108,7 @@ func getImageSummary(ctx context.Context, repo, tag string, repoDB repodb.RepoDB
 		return nil, gqlerror.Errorf("can't find image: %s:%s", repo, tag)
 	}
 
-	manifestMeta, err := repoDB.GetManifestMeta(manifestDigest)
+	manifestMeta, err := repoDB.GetManifestMeta(godigest.Digest(manifestDigest))
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func expandedRepoInfo(ctx context.Context, repo string, repoDB repodb.RepoDB, cv
 			continue
 		}
 
-		manifestMeta, err := repoDB.GetManifestMeta(digest)
+		manifestMeta, err := repoDB.GetManifestMeta(godigest.Digest(digest))
 		if err != nil {
 			graphql.AddError(ctx, errors.Wrapf(err,
 				"resolver: failed to get manifest meta for image %s:%s with manifest digest %s", repo, tag, digest))
@@ -427,8 +427,7 @@ func (r *queryResolver) getImageList(store storage.ImageStore, imageName string)
 				// using a loop variable called tag would be reassigned after each iteration, using the same memory address
 				// directly access the value at the current index in the slice as ImageInfo requires pointers to tag fields
 				tag := tagsInfo[i]
-
-				digest := godigest.Digest(tag.Digest)
+				digest := tag.Digest
 
 				manifest, err := layoutUtils.GetImageBlobManifest(repo, digest)
 				if err != nil {
@@ -507,7 +506,7 @@ func extractImageDetails(
 	layoutUtils common.OciLayoutUtils,
 	repo, tag string, //nolint:unparam // function only called in the tests
 	log log.Logger) (
-	godigest.Digest, *v1.Manifest, *ispec.Image, error,
+	godigest.Digest, *ispec.Manifest, *ispec.Image, error,
 ) {
 	validRepoList, err := userAvailableRepos(ctx, []string{repo})
 	if err != nil {
@@ -529,7 +528,7 @@ func extractImageDetails(
 		return "", nil, nil, err
 	}
 
-	digest := godigest.Digest(dig)
+	digest := dig
 
 	manifest, err := layoutUtils.GetImageBlobManifest(repo, digest)
 	if err != nil {

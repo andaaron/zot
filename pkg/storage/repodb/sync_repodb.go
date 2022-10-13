@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	zerr "zotregistry.io/zot/errors"
 	"zotregistry.io/zot/pkg/log"
@@ -84,7 +85,7 @@ func SyncRepo(repo string, repoDB RepoDB, storeController storage.StoreControlle
 		}
 
 		if manifestMetaIsPresent {
-			err = repoDB.SetRepoTag(repo, tag, manifest.Digest.String())
+			err = repoDB.SetRepoTag(repo, tag, manifest.Digest)
 			if err != nil {
 				log.Error().Err(err).Msgf("sync-repo: failed to set repo tag for %s:%s", repo, tag)
 
@@ -116,8 +117,8 @@ func SyncRepo(repo string, repoDB RepoDB, storeController storage.StoreControlle
 				repo:                 repo,
 				tag:                  tag,
 				signatureType:        signatureType,
-				signedManifestDigest: signedManifestDigest,
-				signatureDigest:      digest,
+				signedManifestDigest: signedManifestDigest.String(),
+				signatureDigest:      digest.String(),
 			})
 
 			continue
@@ -131,7 +132,7 @@ func SyncRepo(repo string, repoDB RepoDB, storeController storage.StoreControlle
 			return err
 		}
 
-		err = repoDB.SetManifestMeta(manifest.Digest.String(), manifestMeta)
+		err = repoDB.SetManifestMeta(manifest.Digest, manifestMeta)
 		if err != nil {
 			log.Error().Err(err).Msgf("sync-repo: failed to set manifest meta for image %s:%s manifest digest %s ",
 				repo, tag, manifest.Digest.String())
@@ -139,7 +140,7 @@ func SyncRepo(repo string, repoDB RepoDB, storeController storage.StoreControlle
 			return err
 		}
 
-		err = repoDB.SetRepoTag(repo, tag, manifest.Digest.String())
+		err = repoDB.SetRepoTag(repo, tag, manifest.Digest)
 		if err != nil {
 			log.Error().Err(err).Msgf("sync-repo: failed to repo tag for repo %s and tag %s",
 				repo, tag)
@@ -150,9 +151,9 @@ func SyncRepo(repo string, repoDB RepoDB, storeController storage.StoreControlle
 
 	// manage the signatures found
 	for _, sigData := range signaturesFound {
-		err := repoDB.AddManifestSignature(sigData.signedManifestDigest, SignatureMetadata{
+		err := repoDB.AddManifestSignature(godigest.Digest(sigData.signedManifestDigest), SignatureMetadata{
 			SignatureType:   sigData.signatureType,
-			SignatureDigest: sigData.signatureDigest,
+			SignatureDigest: godigest.Digest(sigData.signatureDigest),
 		})
 		if err != nil {
 			log.Error().Err(err).Msgf("sync-repo: failed set signature meta for signed image %s:%s manifest digest %s ",
@@ -213,7 +214,7 @@ func getAllRepos(storeController storage.StoreController) ([]string, error) {
 }
 
 func isManifestMetaPresent(manifest ispec.Descriptor, repoDB RepoDB) (bool, error) {
-	_, err := repoDB.GetManifestMeta(manifest.Digest.String())
+	_, err := repoDB.GetManifestMeta(manifest.Digest)
 	if err != nil && !errors.Is(err, zerr.ErrManifestMetaNotFound) {
 		return false, err
 	}
@@ -245,7 +246,7 @@ func NewManifestMeta(repoName string, manifestBlob []byte, storeController stora
 		return ManifestMetadata{}, err
 	}
 
-	configBlob, err := imgStore.GetBlobContent(repoName, manifestContent.Config.Digest.String())
+	configBlob, err := imgStore.GetBlobContent(repoName, manifestContent.Config.Digest)
 	if err != nil {
 		return ManifestMetadata{}, err
 	}

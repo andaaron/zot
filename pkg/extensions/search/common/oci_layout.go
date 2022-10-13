@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	notreg "github.com/notaryproject/notation-go/registry"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -19,10 +18,10 @@ import (
 )
 
 type OciLayoutUtils interface { //nolint: interfacebloat
-	GetImageManifest(repo string, reference string) (ispec.Manifest, string, error)
+	GetImageManifest(repo string, reference string) (ispec.Manifest, godigest.Digest, error)
 	GetImageManifests(image string) ([]ispec.Descriptor, error)
-	GetImageBlobManifest(imageDir string, digest godigest.Digest) (v1.Manifest, error)
-	GetImageInfo(imageDir string, hash v1.Hash) (ispec.Image, error)
+	GetImageBlobManifest(imageDir string, digest godigest.Digest) (ispec.Manifest, error)
+	GetImageInfo(imageDir string, digest godigest.Digest) (ispec.Image, error)
 	GetImageTagsWithTimestamp(repo string) ([]TagInfo, error)
 	GetImagePlatform(imageInfo ispec.Image) (string, string)
 	GetImageManifestSize(repo string, manifestDigest godigest.Digest) int64
@@ -44,26 +43,26 @@ func NewBaseOciLayoutUtils(storeController storage.StoreController, log log.Logg
 	return &BaseOciLayoutUtils{Log: log, StoreController: storeController}
 }
 
-func (olu BaseOciLayoutUtils) GetImageManifest(repo string, reference string) (ispec.Manifest, string, error) {
+func (olu BaseOciLayoutUtils) GetImageManifest(repo string, reference string) (ispec.Manifest, godigest.Digest, error) {
 	imageStore := olu.StoreController.GetImageStore(repo)
 
 	if reference == "" {
 		reference = "latest"
 	}
 
-	buf, dig, _, err := imageStore.GetImageManifest(repo, reference)
+	manifestBlob, digest, _, err := imageStore.GetImageManifest(repo, reference)
 	if err != nil {
 		return ispec.Manifest{}, "", err
 	}
 
 	var manifest ispec.Manifest
 
-	err = json.Unmarshal(buf, &manifest)
+	err = json.Unmarshal(manifestBlob, &manifest)
 	if err != nil {
 		return ispec.Manifest{}, "", err
 	}
 
-	return manifest, dig, nil
+	return manifest, digest, nil
 }
 
 // Provide a list of repositories from all the available image stores.
@@ -116,12 +115,12 @@ func (olu BaseOciLayoutUtils) GetImageManifests(image string) ([]ispec.Descripto
 	return index.Manifests, nil
 }
 
-func (olu BaseOciLayoutUtils) GetImageBlobManifest(imageDir string, digest godigest.Digest) (v1.Manifest, error) {
-	var blobIndex v1.Manifest
+func (olu BaseOciLayoutUtils) GetImageBlobManifest(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
+	var blobIndex ispec.Manifest
 
 	imageStore := olu.StoreController.GetImageStore(imageDir)
 
-	blobBuf, err := imageStore.GetBlobContent(imageDir, digest.String())
+	blobBuf, err := imageStore.GetBlobContent(imageDir, digest)
 	if err != nil {
 		olu.Log.Error().Err(err).Msg("unable to open image metadata file")
 
@@ -137,12 +136,12 @@ func (olu BaseOciLayoutUtils) GetImageBlobManifest(imageDir string, digest godig
 	return blobIndex, nil
 }
 
-func (olu BaseOciLayoutUtils) GetImageInfo(imageDir string, hash v1.Hash) (ispec.Image, error) {
+func (olu BaseOciLayoutUtils) GetImageInfo(imageDir string, digest godigest.Digest) (ispec.Image, error) {
 	var imageInfo ispec.Image
 
 	imageStore := olu.StoreController.GetImageStore(imageDir)
 
-	blobBuf, err := imageStore.GetBlobContent(imageDir, hash.String())
+	blobBuf, err := imageStore.GetBlobContent(imageDir, digest)
 	if err != nil {
 		olu.Log.Error().Err(err).Msg("unable to open image layers file")
 
@@ -190,7 +189,7 @@ func (olu BaseOciLayoutUtils) GetImageTagsWithTimestamp(repo string) ([]TagInfo,
 
 			timeStamp := GetImageLastUpdated(imageInfo)
 
-			tagsInfo = append(tagsInfo, TagInfo{Name: val, Timestamp: timeStamp, Digest: digest.String()})
+			tagsInfo = append(tagsInfo, TagInfo{Name: val, Timestamp: timeStamp, Digest: digest})
 		}
 	}
 
@@ -202,7 +201,7 @@ func (olu BaseOciLayoutUtils) checkNotarySignature(name string, digest godigest.
 	imageStore := olu.StoreController.GetImageStore(name)
 	mediaType := notreg.ArtifactTypeNotation
 
-	_, err := imageStore.GetReferrers(name, digest.String(), mediaType)
+	_, err := imageStore.GetReferrers(name, digest, mediaType)
 	if err != nil {
 		olu.Log.Info().Err(err).Str("repo", name).Str("digest",
 			digest.String()).Str("mediatype", mediaType).Msg("invalid notary signature")
@@ -266,7 +265,7 @@ func (olu BaseOciLayoutUtils) GetImageConfigInfo(repo string, manifestDigest god
 func (olu BaseOciLayoutUtils) GetImageManifestSize(repo string, manifestDigest godigest.Digest) int64 {
 	imageStore := olu.StoreController.GetImageStore(repo)
 
-	manifestBlob, err := imageStore.GetBlobContent(repo, manifestDigest.String())
+	manifestBlob, err := imageStore.GetBlobContent(repo, manifestDigest)
 	if err != nil {
 		olu.Log.Error().Err(err).Msg("error when getting manifest blob content")
 
@@ -351,7 +350,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 		configSize := manifest.Config.Size
 
 		repoBlob2Size[man.Digest.String()] = manifestSize
-		repoBlob2Size[manifest.Config.Digest.Hex] = configSize
+		repoBlob2Size[manifest.Config.Digest.Hex()] = configSize
 
 		imageConfigInfo, err := olu.GetImageConfigInfo(name, man.Digest)
 		if err != nil {
@@ -376,7 +375,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 		for _, layer := range manifest.Layers {
 			layerInfo := LayerSummary{}
 
-			layerInfo.Digest = layer.Digest.Hex
+			layerInfo.Digest = layer.Digest.Hex()
 
 			repoBlob2Size[layerInfo.Digest] = layer.Size
 
@@ -442,7 +441,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 
 		size := strconv.Itoa(int(imageSize))
 		manifestDigest := man.Digest.Hex()
-		configDigest := manifest.Config.Digest.Hex
+		configDigest := manifest.Config.Digest.Hex()
 		lastUpdated := GetImageLastUpdated(imageConfigInfo)
 		score := 0
 
@@ -470,7 +469,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 
 		imageSummaries = append(imageSummaries, imageSummary)
 
-		if man.Digest.String() == lastUpdatedTag.Digest {
+		if man.Digest == lastUpdatedTag.Digest {
 			lastUpdatedImageSummary = imageSummary
 		}
 	}

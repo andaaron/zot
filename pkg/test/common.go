@@ -161,7 +161,7 @@ func WriteImageToFileSystem(image Image, repoName string, storeController storag
 		layerReader := bytes.NewReader(layerBlob)
 		layerDigest := godigest.FromBytes(layerBlob)
 
-		_, _, err = store.FullBlobUpload(repoName, layerReader, layerDigest.String())
+		_, _, err = store.FullBlobUpload(repoName, layerReader, layerDigest)
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func WriteImageToFileSystem(image Image, repoName string, storeController storag
 	configReader := bytes.NewReader(configBlob)
 	configDigest := godigest.FromBytes(configBlob)
 
-	_, _, err = store.FullBlobUpload(repoName, configReader, configDigest.String())
+	_, _, err = store.FullBlobUpload(repoName, configReader, configDigest)
 	if err != nil {
 		return err
 	}

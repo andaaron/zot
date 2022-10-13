@@ -943,12 +943,12 @@ func TestValidateLogo(t *testing.T) {
 		digest := godigest.FromBytes(content)
 		So(digest, ShouldNotBeNil)
 
-		_, blen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(content), digest.String())
+		_, blen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(content), digest)
 		So(err, ShouldBeNil)
 		So(blen, ShouldEqual, len(content))
 
 		cblob, cdigest := test.GetRandomImageConfig()
-		_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest.String())
+		_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest)
 		So(err, ShouldBeNil)
 		So(clen, ShouldEqual, len(cblob))
 
@@ -957,10 +957,10 @@ func TestValidateLogo(t *testing.T) {
 			annotationsMap[ispec.AnnotationRefName] = tag
 
 			cblob, cdigest := test.GetRandomImageConfig()
-			_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest.String())
+			_, clen, err := imgStore.FullBlobUpload(repoName, bytes.NewReader(cblob), cdigest)
 			So(err, ShouldBeNil)
 			So(clen, ShouldEqual, len(cblob))
-			hasBlob, _, err := imgStore.CheckBlob(repoName, cdigest.String())
+			hasBlob, _, err := imgStore.CheckBlob(repoName, cdigest)
 			So(err, ShouldBeNil)
 			So(hasBlob, ShouldEqual, true)
 

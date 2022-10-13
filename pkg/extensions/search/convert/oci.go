@@ -3,7 +3,6 @@ package convert
 import (
 	"strconv"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	zerr "zotregistry.io/zot/errors"
@@ -13,7 +12,7 @@ import (
 )
 
 func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
-	manifest v1.Manifest, imageConfig ispec.Image, isSigned bool,
+	manifest ispec.Manifest, imageConfig ispec.Image, isSigned bool,
 ) *gql_generated.ImageSummary {
 	layers := []*gql_generated.LayerSummary{}
 	size := int64(0)
@@ -27,7 +26,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	if len(history) == 0 {
 		for _, layer := range manifest.Layers {
 			size += layer.Size
-			digest := layer.Digest.Hex
+			digest := layer.Digest.Hex()
 			layerSize := strconv.FormatInt(layer.Size, 10)
 
 			layer := &gql_generated.LayerSummary{
@@ -47,12 +46,13 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 		}
 
 		formattedSize := strconv.FormatInt(size, 10)
+		configDigest := manifest.Config.Digest.Hex()
 
 		imageInfo := &gql_generated.ImageSummary{
 			RepoName:      &repo,
 			Tag:           &tag,
 			Digest:        &formattedManifestDigest,
-			ConfigDigest:  &manifest.Config.Digest.Hex,
+			ConfigDigest:  &configDigest,
 			Size:          &formattedSize,
 			Layers:        layers,
 			History:       allHistory,
@@ -97,12 +97,13 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 			formattedSize := strconv.FormatInt(size, 10)
 
 			log.Error().Err(zerr.ErrBadLayerCount).Msg("error on creating layer history for ImageSummary")
+			configDigest := manifest.Config.Digest.Hex()
 
 			return &gql_generated.ImageSummary{
 				RepoName:      &repo,
 				Tag:           &tag,
 				Digest:        &formattedManifestDigest,
-				ConfigDigest:  &manifest.Config.Digest.Hex,
+				ConfigDigest:  &configDigest,
 				Size:          &formattedSize,
 				Layers:        layers,
 				History:       allHistory,
@@ -124,7 +125,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 		}
 
 		size += manifest.Layers[layersIterator].Size
-		digest := manifest.Layers[layersIterator].Digest.Hex
+		digest := manifest.Layers[layersIterator].Digest.Hex()
 		layerSize := strconv.FormatInt(manifest.Layers[layersIterator].Size, 10)
 
 		layer := &gql_generated.LayerSummary{
@@ -144,11 +145,13 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 
 	formattedSize := strconv.FormatInt(size, 10)
 
+	configDigest := manifest.Config.Digest.Hex()
+
 	imageInfo := &gql_generated.ImageSummary{
 		RepoName:      &repo,
 		Tag:           &tag,
 		Digest:        &formattedManifestDigest,
-		ConfigDigest:  &manifest.Config.Digest.Hex,
+		ConfigDigest:  &configDigest,
 		Size:          &formattedSize,
 		Layers:        layers,
 		History:       allHistory,
