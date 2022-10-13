@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	godigest "github.com/opencontainers/go-digest"
 	"go.etcd.io/bbolt"
 	"zotregistry.io/zot/errors"
 	zlog "zotregistry.io/zot/pkg/log"
@@ -68,9 +69,9 @@ func NewCache(rootDir string, name string, useRelPaths bool, log zlog.Logger) *C
 	return &Cache{rootDir: rootDir, db: cacheDB, useRelPaths: useRelPaths, log: log}
 }
 
-func (c *Cache) PutBlob(digest, path string) error {
+func (c *Cache) PutBlob(digest godigest.Digest, path string) error {
 	if path == "" {
-		c.log.Error().Err(errors.ErrEmptyValue).Str("digest", digest).Msg("empty path provided")
+		c.log.Error().Err(errors.ErrEmptyValue).Str("digest", digest.String()).Msg("empty path provided")
 
 		return errors.ErrEmptyValue
 	}
@@ -94,10 +95,10 @@ func (c *Cache) PutBlob(digest, path string) error {
 			return err
 		}
 
-		bucket, err := root.CreateBucketIfNotExists([]byte(digest))
+		bucket, err := root.CreateBucketIfNotExists([]byte(digest.String()))
 		if err != nil {
 			// this is a serious failure
-			c.log.Error().Err(err).Str("bucket", digest).Msg("unable to create a bucket")
+			c.log.Error().Err(err).Str("bucket", digest.String()).Msg("unable to create a bucket")
 
 			return err
 		}
@@ -144,7 +145,7 @@ func (c *Cache) PutBlob(digest, path string) error {
 	return nil
 }
 
-func (c *Cache) GetBlob(digest string) (string, error) {
+func (c *Cache) GetBlob(digest godigest.Digest) (string, error) {
 	var blobPath strings.Builder
 
 	if err := c.db.View(func(tx *bbolt.Tx) error {
@@ -157,7 +158,7 @@ func (c *Cache) GetBlob(digest string) (string, error) {
 			return err
 		}
 
-		bucket := root.Bucket([]byte(digest))
+		bucket := root.Bucket([]byte(digest.String()))
 		if bucket != nil {
 			origin := bucket.Bucket([]byte(OriginalBucket))
 			blobPath.WriteString(string(c.getOne(origin)))
@@ -217,7 +218,7 @@ func (c *Cache) getOne(bucket *bbolt.Bucket) []byte {
 	return nil
 }
 
-func (c *Cache) DeleteBlob(digest, path string) error {
+func (c *Cache) DeleteBlob(digest godigest.Digest, path string) error {
 	// use only relative (to rootDir) paths on blobs
 	var err error
 	if c.useRelPaths {
@@ -237,7 +238,7 @@ func (c *Cache) DeleteBlob(digest, path string) error {
 			return err
 		}
 
-		bucket := root.Bucket([]byte(digest))
+		bucket := root.Bucket([]byte(digest.String()))
 		if bucket == nil {
 			return errors.ErrCacheMiss
 		}
@@ -248,7 +249,7 @@ func (c *Cache) DeleteBlob(digest, path string) error {
 		}
 
 		if err := deduped.Delete([]byte(path)); err != nil {
-			c.log.Error().Err(err).Str("digest", digest).Str("bucket", DuplicatesBucket).
+			c.log.Error().Err(err).Str("digest", digest.String()).Str("bucket", DuplicatesBucket).
 				Str("path", path).Msg("unable to delete")
 
 			return err
@@ -259,7 +260,7 @@ func (c *Cache) DeleteBlob(digest, path string) error {
 			originBlob := c.getOne(origin)
 			if originBlob != nil {
 				if err := origin.Delete([]byte(path)); err != nil {
-					c.log.Error().Err(err).Str("digest", digest).Str("bucket", OriginalBucket).
+					c.log.Error().Err(err).Str("digest", digest.String()).Str("bucket", OriginalBucket).
 						Str("path", path).Msg("unable to delete")
 
 					return err
@@ -269,7 +270,8 @@ func (c *Cache) DeleteBlob(digest, path string) error {
 				dedupedBlob := c.getOne(deduped)
 				if dedupedBlob != nil {
 					if err := origin.Put(dedupedBlob, nil); err != nil {
-						c.log.Error().Err(err).Str("digest", digest).Str("bucket", OriginalBucket).Str("path", path).Msg("unable to put")
+						c.log.Error().Err(err).Str("digest", digest.String()).Str("bucket", OriginalBucket).Str("path", path).
+							Msg("unable to put")
 
 						return err
 					}
@@ -280,9 +282,10 @@ func (c *Cache) DeleteBlob(digest, path string) error {
 		// if no key in origin bucket then digest bucket is empty, remove it
 		k := c.getOne(origin)
 		if k == nil {
-			c.log.Debug().Str("digest", digest).Str("path", path).Msg("deleting empty bucket")
-			if err := root.DeleteBucket([]byte(digest)); err != nil {
-				c.log.Error().Err(err).Str("digest", digest).Str("bucket", digest).Str("path", path).Msg("unable to delete")
+			c.log.Debug().Str("digest", digest.String()).Str("path", path).Msg("deleting empty bucket")
+			if err := root.DeleteBucket([]byte(digest.String())); err != nil {
+				c.log.Error().Err(err).Str("digest", digest.String()).Str("bucket", digest.String()).Str("path", path).
+					Msg("unable to delete")
 
 				return err
 			}

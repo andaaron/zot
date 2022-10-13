@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	notreg "github.com/notaryproject/notation-go/registry"
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	artifactspec "github.com/oras-project/artifacts-spec/specs-go/v1"
 	"github.com/sigstore/cosign/pkg/oci/remote"
@@ -19,12 +20,12 @@ import (
 	"zotregistry.io/zot/pkg/storage"
 )
 
-func getCosignManifest(client *resty.Client, regURL url.URL, repo, digest string,
+func getCosignManifest(client *resty.Client, regURL url.URL, repo, digestStr string,
 	log log.Logger,
 ) (*ispec.Manifest, error) {
 	var cosignManifest ispec.Manifest
 
-	cosignTag := getCosignTagFromImageDigest(digest)
+	cosignTag := getCosignTagFromImageDigest(digestStr)
 
 	getCosignManifestURL := regURL
 
@@ -68,14 +69,16 @@ func getCosignManifest(client *resty.Client, regURL url.URL, repo, digest string
 	return &cosignManifest, nil
 }
 
-func getNotaryRefs(client *resty.Client, regURL url.URL, repo, digest string, log log.Logger) (ReferenceList, error) {
+func getNotaryRefs(client *resty.Client, regURL url.URL, repo, digestStr string,
+	log log.Logger,
+) (ReferenceList, error) {
 	var referrers ReferenceList
 
 	getReferrersURL := regURL
 
 	// based on manifest digest get referrers
 	getReferrersURL.Path = path.Join(getReferrersURL.Path, constants.ArtifactSpecRoutePrefix,
-		repo, "manifests", digest, "referrers")
+		repo, "manifests", digestStr, "referrers")
 
 	getReferrersURL.RawQuery = getReferrersURL.Query().Encode()
 
@@ -116,9 +119,9 @@ func getNotaryRefs(client *resty.Client, regURL url.URL, repo, digest string, lo
 }
 
 func syncCosignSignature(client *resty.Client, imageStore storage.ImageStore,
-	regURL url.URL, localRepo, remoteRepo, digest string, cosignManifest *ispec.Manifest, log log.Logger,
+	regURL url.URL, localRepo, remoteRepo, digestStr string, cosignManifest *ispec.Manifest, log log.Logger,
 ) error {
-	cosignTag := getCosignTagFromImageDigest(digest)
+	cosignTag := getCosignTagFromImageDigest(digestStr)
 
 	// if no manifest found
 	if cosignManifest == nil {
@@ -150,7 +153,7 @@ func syncCosignSignature(client *resty.Client, imageStore storage.ImageStore,
 		defer resp.RawBody().Close()
 
 		// push blob
-		_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), blob.Digest.String())
+		_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), blob.Digest)
 		if err != nil {
 			log.Error().Str("errorType", TypeOf(err)).
 				Err(err).Msg("couldn't upload cosign blob")
@@ -181,7 +184,7 @@ func syncCosignSignature(client *resty.Client, imageStore storage.ImageStore,
 	defer resp.RawBody().Close()
 
 	// push config blob
-	_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), cosignManifest.Config.Digest.String())
+	_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), cosignManifest.Config.Digest)
 	if err != nil {
 		log.Error().Str("errorType", TypeOf(err)).
 			Err(err).Msg("couldn't upload cosign config blob")
@@ -205,13 +208,13 @@ func syncCosignSignature(client *resty.Client, imageStore storage.ImageStore,
 		return err
 	}
 
-	log.Info().Msgf("successfully synced cosign signature for repo %s digest %s", localRepo, digest)
+	log.Info().Msgf("successfully synced cosign signature for repo %s digest %s", localRepo, digestStr)
 
 	return nil
 }
 
 func syncNotarySignature(client *resty.Client, imageStore storage.ImageStore,
-	regURL url.URL, localRepo, remoteRepo, digest string, referrers ReferenceList, log log.Logger,
+	regURL url.URL, localRepo, remoteRepo, digestStr string, referrers ReferenceList, log log.Logger,
 ) error {
 	if len(referrers.References) == 0 {
 		return nil
@@ -267,7 +270,7 @@ func syncNotarySignature(client *resty.Client, imageStore storage.ImageStore,
 				return zerr.ErrSyncSignature
 			}
 
-			_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), blob.Digest.String())
+			_, _, err = imageStore.FullBlobUpload(localRepo, resp.RawBody(), blob.Digest)
 			if err != nil {
 				log.Error().Str("errorType", TypeOf(err)).
 					Err(err).Msg("couldn't upload notary sig blob")
@@ -286,12 +289,12 @@ func syncNotarySignature(client *resty.Client, imageStore storage.ImageStore,
 		}
 	}
 
-	log.Info().Msgf("successfully synced notary signature for repo %s digest %s", localRepo, digest)
+	log.Info().Msgf("successfully synced notary signature for repo %s digest %s", localRepo, digestStr)
 
 	return nil
 }
 
-func canSkipNotarySignature(repo, tag, digest string, refs ReferenceList, imageStore storage.ImageStore,
+func canSkipNotarySignature(repo, tag string, digest godigest.Digest, refs ReferenceList, imageStore storage.ImageStore,
 	log log.Logger,
 ) (bool, error) {
 	// check notary signature already synced
@@ -320,8 +323,8 @@ func canSkipNotarySignature(repo, tag, digest string, refs ReferenceList, imageS
 	return true, nil
 }
 
-func canSkipCosignSignature(repo, tag, digest string, cosignManifest *ispec.Manifest, imageStore storage.ImageStore,
-	log log.Logger,
+func canSkipCosignSignature(repo, tag string, digestStr string, cosignManifest *ispec.Manifest,
+	imageStore storage.ImageStore, log log.Logger,
 ) (bool, error) {
 	// check cosign signature already synced
 	if cosignManifest != nil {
@@ -329,7 +332,7 @@ func canSkipCosignSignature(repo, tag, digest string, cosignManifest *ispec.Mani
 
 		/* we need to use tag (cosign format: sha256-$IMAGE_TAG.sig) instead of digest to get local cosign manifest
 		because of an issue where cosign digests differs between upstream and downstream */
-		cosignManifestTag := getCosignTagFromImageDigest(digest)
+		cosignManifestTag := getCosignTagFromImageDigest(digestStr)
 
 		localCosignManifestBuf, _, _, err := imageStore.GetImageManifest(repo, cosignManifestTag)
 		if err != nil {
@@ -373,10 +376,10 @@ func isCosignTag(tag string) bool {
 	return false
 }
 
-func getCosignTagFromImageDigest(digest string) string {
-	if !isCosignTag(digest) {
-		return strings.Replace(digest, ":", "-", 1) + "." + remote.SignatureTagSuffix
+func getCosignTagFromImageDigest(digestStr string) string {
+	if !isCosignTag(digestStr) {
+		return strings.Replace(digestStr, ":", "-", 1) + "." + remote.SignatureTagSuffix
 	}
 
-	return digest
+	return digestStr
 }

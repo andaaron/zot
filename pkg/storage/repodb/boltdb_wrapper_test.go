@@ -64,13 +64,13 @@ func TestBoltDBWrapper(t *testing.T) {
 
 			manifestDigest := digest.FromBytes(manifestBlob)
 
-			err = repoDB.SetManifestMeta(manifestDigest.String(), repodb.ManifestMetadata{
+			err = repoDB.SetManifestMeta(manifestDigest, repodb.ManifestMetadata{
 				ManifestBlob: manifestBlob,
 				ConfigBlob:   configBlob,
 			})
 			So(err, ShouldBeNil)
 
-			mm, err := repoDB.GetManifestMeta(manifestDigest.String())
+			mm, err := repoDB.GetManifestMeta(manifestDigest)
 			So(err, ShouldBeNil)
 			So(mm.ManifestBlob, ShouldResemble, manifestBlob)
 			So(mm.ConfigBlob, ShouldResemble, configBlob)
@@ -87,10 +87,10 @@ func TestBoltDBWrapper(t *testing.T) {
 				repo1           = "repo1"
 				repo2           = "repo2"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifes2").String()
+				manifestDigest2 = digest.FromString("fake-manifes2")
 			)
 
 			Convey("Setting a good repo", func() {
@@ -125,8 +125,8 @@ func TestBoltDBWrapper(t *testing.T) {
 				repoMeta2, err := repoDB.GetRepoMeta(repo2)
 				So(err, ShouldBeNil)
 
-				So(repoMeta1.Tags[tag1], ShouldResemble, manifestDigest1)
-				So(repoMeta2.Tags[tag2], ShouldResemble, manifestDigest2)
+				So(repoMeta1.Tags[tag1], ShouldResemble, manifestDigest1.String())
+				So(repoMeta2.Tags[tag2], ShouldResemble, manifestDigest2.String())
 			})
 
 			Convey("Setting a repo with invalid fields", func() {
@@ -151,11 +151,11 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 
 				repo2           = "repo2"
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 
 				InexistentRepo = "InexistentRepo"
 			)
@@ -169,11 +169,11 @@ func TestBoltDBWrapper(t *testing.T) {
 			Convey("Get a existent repo", func() {
 				repoMeta1, err := repoDB.GetRepoMeta(repo1)
 				So(err, ShouldBeNil)
-				So(repoMeta1.Tags[tag1], ShouldResemble, manifestDigest1)
+				So(repoMeta1.Tags[tag1], ShouldResemble, manifestDigest1.String())
 
 				repoMeta2, err := repoDB.GetRepoMeta(repo2)
 				So(err, ShouldBeNil)
-				So(repoMeta2.Tags[tag2], ShouldResemble, manifestDigest2)
+				So(repoMeta2.Tags[tag2], ShouldResemble, manifestDigest2.String())
 			})
 
 			Convey("Get a repo that doesn't exist", func() {
@@ -187,9 +187,9 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo            = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 			)
 
 			err := repoDB.SetRepoTag(repo, tag1, manifestDigest1)
@@ -210,7 +210,7 @@ func TestBoltDBWrapper(t *testing.T) {
 
 				_, ok := repoMeta.Tags[tag1]
 				So(ok, ShouldBeFalse)
-				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2)
+				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2.String())
 			})
 
 			Convey("Delete all tags from repo", func() {
@@ -231,8 +231,8 @@ func TestBoltDBWrapper(t *testing.T) {
 				repoMeta, err := repoDB.GetRepoMeta(repo)
 				So(err, ShouldBeNil)
 
-				So(repoMeta.Tags[tag1], ShouldResemble, manifestDigest1)
-				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2)
+				So(repoMeta.Tags[tag1], ShouldResemble, manifestDigest1.String())
+				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2.String())
 			})
 
 			Convey("Delete from inexistent repo", func() {
@@ -242,8 +242,8 @@ func TestBoltDBWrapper(t *testing.T) {
 				repoMeta, err := repoDB.GetRepoMeta(repo)
 				So(err, ShouldBeNil)
 
-				So(repoMeta.Tags[tag1], ShouldResemble, manifestDigest1)
-				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2)
+				So(repoMeta.Tags[tag1], ShouldResemble, manifestDigest1.String())
+				So(repoMeta.Tags[tag2], ShouldResemble, manifestDigest2.String())
 			})
 		})
 
@@ -252,9 +252,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				repo1           = "repo1"
 				repo2           = "repo2"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -286,7 +286,7 @@ func TestBoltDBWrapper(t *testing.T) {
 				}, repodb.PageInput{})
 				So(err, ShouldBeNil)
 				So(len(repoMetaSlice), ShouldEqual, 1)
-				So(repoMetaSlice[0].Tags[tag1] == manifestDigest1, ShouldBeTrue)
+				So(repoMetaSlice[0].Tags[tag1] == manifestDigest1.String(), ShouldBeTrue)
 			})
 		})
 
@@ -294,7 +294,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -326,7 +326,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -361,7 +361,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				description     = "This is a test description"
 			)
 
@@ -383,7 +383,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				logoPath        = "This is a fake logo path"
 			)
 
@@ -405,7 +405,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -437,24 +437,24 @@ func TestBoltDBWrapper(t *testing.T) {
 
 			manifestDigest := digest.FromBytes(manifestBlob)
 
-			err = repoDB.SetManifestMeta(manifestDigest.String(), repodb.ManifestMetadata{
+			err = repoDB.SetManifestMeta(manifestDigest, repodb.ManifestMetadata{
 				ManifestBlob: manifestBlob,
 				ConfigBlob:   configBlob,
 			})
 			So(err, ShouldBeNil)
 
-			err = repoDB.IncrementManifestDownloads(manifestDigest.String())
+			err = repoDB.IncrementManifestDownloads(manifestDigest)
 			So(err, ShouldBeNil)
 
-			manifestMeta, err := repoDB.GetManifestMeta(manifestDigest.String())
+			manifestMeta, err := repoDB.GetManifestMeta(manifestDigest)
 			So(err, ShouldBeNil)
 
 			So(manifestMeta.DownloadCount, ShouldEqual, 1)
 
-			err = repoDB.IncrementManifestDownloads(manifestDigest.String())
+			err = repoDB.IncrementManifestDownloads(manifestDigest)
 			So(err, ShouldBeNil)
 
-			manifestMeta, err = repoDB.GetManifestMeta(manifestDigest.String())
+			manifestMeta, err = repoDB.GetManifestMeta(manifestDigest)
 			So(err, ShouldBeNil)
 
 			So(manifestMeta.DownloadCount, ShouldEqual, 2)
@@ -467,7 +467,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -494,7 +494,7 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -536,11 +536,11 @@ func TestBoltDBWrapper(t *testing.T) {
 				repo2           = "repo2"
 				repo3           = "repo3"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 				tag3            = "0.0.3"
-				manifestDigest3 = digest.FromString("fake-manifest3").String()
+				manifestDigest3 = digest.FromString("fake-manifest3")
 				ctx             = context.Background()
 				emptyManifest   ispec.Manifest
 				emptyConfig     ispec.Manifest
@@ -575,9 +575,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(repos), ShouldEqual, 2)
 				So(len(manifesMetaMap), ShouldEqual, 3)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest2)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest3)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest2.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest3.String())
 			})
 
 			Convey("Search a repo by name", func() {
@@ -591,7 +591,7 @@ func TestBoltDBWrapper(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(repos), ShouldEqual, 1)
 				So(len(manifesMetaMap), ShouldEqual, 1)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
 			})
 
 			Convey("Search non-existing repo by name", func() {
@@ -625,9 +625,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				repos, manifesMetaMap, err := repoDB.SearchRepos(ctx, "pine", repodb.Filter{}, repodb.PageInput{})
 				So(err, ShouldBeNil)
 				So(len(repos), ShouldEqual, 2)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest2)
-				So(manifesMetaMap, ShouldNotContainKey, manifestDigest3)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest2.String())
+				So(manifesMetaMap, ShouldNotContainKey, manifestDigest3.String())
 			})
 
 			Convey("Search multiple repos that share manifests", func() {
@@ -707,12 +707,12 @@ func TestBoltDBWrapper(t *testing.T) {
 						DownloadCount: i,
 					}
 
-					err = repoDB.SetManifestMeta(manifestDigest.String(), manifestMeta)
+					err = repoDB.SetManifestMeta(manifestDigest, manifestMeta)
 					So(err, ShouldBeNil)
 
 					repoName := "repo" + strconv.Itoa(i)
 
-					err = repoDB.SetRepoTag(repoName, tag1, manifestDigest.String())
+					err = repoDB.SetRepoTag(repoName, tag1, manifestDigest)
 					So(err, ShouldBeNil)
 
 					repoNameBuilder.Reset()
@@ -849,9 +849,9 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				repo2           = "repo2"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
-				manifestDigest3 = digest.FromString("fake-manifest3").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
+				manifestDigest2 = digest.FromString("fake-manifest2")
+				manifestDigest3 = digest.FromString("fake-manifest3")
 				ctx             = context.Background()
 				emptyManifest   ispec.Manifest
 				emptyConfig     ispec.Manifest
@@ -894,7 +894,7 @@ func TestBoltDBWrapper(t *testing.T) {
 				So(len(repos), ShouldEqual, 1)
 				So(len(repos[0].Tags), ShouldEqual, 1)
 				So(repos[0].Tags, ShouldContainKey, "0.0.1")
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
 			})
 
 			Convey("With partial repo path", func() {
@@ -911,8 +911,8 @@ func TestBoltDBWrapper(t *testing.T) {
 				So(len(repos[0].Tags), ShouldEqual, 2)
 				So(repos[0].Tags, ShouldContainKey, "0.0.2")
 				So(repos[0].Tags, ShouldContainKey, "0.0.1")
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest3)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest3.String())
 
 				repos, manifesMetaMap, err = repoDB.SearchTags(ctx, "repo1:0.", repodb.Filter{}, repodb.PageInput{})
 				So(err, ShouldBeNil)
@@ -921,9 +921,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				So(repos[0].Tags, ShouldContainKey, "0.0.1")
 				So(repos[0].Tags, ShouldContainKey, "0.0.2")
 				So(repos[0].Tags, ShouldContainKey, "0.1.0")
-				So(manifesMetaMap, ShouldContainKey, manifestDigest1)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest2)
-				So(manifesMetaMap, ShouldContainKey, manifestDigest3)
+				So(manifesMetaMap, ShouldContainKey, manifestDigest1.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest2.String())
+				So(manifesMetaMap, ShouldContainKey, manifestDigest3.String())
 			})
 
 			Convey("With bad query", func() {
@@ -939,9 +939,9 @@ func TestBoltDBWrapper(t *testing.T) {
 					repo2           = "repo2"
 					repo3           = "repo3"
 					tag1            = "0.0.1"
-					manifestDigest1 = digest.FromString("fake-manifest1").String()
+					manifestDigest1 = digest.FromString("fake-manifest1")
 					tag2            = "0.0.2"
-					manifestDigest2 = digest.FromString("fake-manifest2").String()
+					manifestDigest2 = digest.FromString("fake-manifest2")
 					tag3            = "0.0.3"
 				)
 
@@ -986,9 +986,9 @@ func TestBoltDBWrapper(t *testing.T) {
 			var (
 				repo1           = "repo1"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 				tag3            = "0.0.3"
 				tag4            = "0.0.4"
 				tag5            = "0.0.5"
@@ -1064,9 +1064,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				repo4           = "repo4"
 				tag1            = "0.0.1"
 				tag2            = "0.0.2"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
-				manifestDigest3 = digest.FromString("fake-manifest3").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
+				manifestDigest2 = digest.FromString("fake-manifest2")
+				manifestDigest3 = digest.FromString("fake-manifest3")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -1168,9 +1168,9 @@ func TestBoltDBWrapper(t *testing.T) {
 				repo4           = "repo4"
 				tag1            = "0.0.1"
 				tag2            = "0.0.2"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
-				manifestDigest3 = digest.FromString("fake-manifest3").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
+				manifestDigest2 = digest.FromString("fake-manifest2")
+				manifestDigest3 = digest.FromString("fake-manifest3")
 			)
 
 			err := repoDB.SetRepoTag(repo1, tag1, manifestDigest1)
@@ -1277,11 +1277,11 @@ func TestRelevanceSorting(t *testing.T) {
 				repo3           = "notalpine"
 				repo4           = "unmached/repo"
 				tag1            = "0.0.1"
-				manifestDigest1 = digest.FromString("fake-manifest1").String()
+				manifestDigest1 = digest.FromString("fake-manifest1")
 				tag2            = "0.0.2"
-				manifestDigest2 = digest.FromString("fake-manifest2").String()
+				manifestDigest2 = digest.FromString("fake-manifest2")
 				tag3            = "0.0.3"
-				manifestDigest3 = digest.FromString("fake-manifest3").String()
+				manifestDigest3 = digest.FromString("fake-manifest3")
 				ctx             = context.Background()
 				emptyManifest   ispec.Manifest
 				emptyConfig     ispec.Manifest

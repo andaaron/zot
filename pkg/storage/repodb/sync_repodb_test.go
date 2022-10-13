@@ -9,7 +9,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	. "github.com/smartystreets/goconvey/convey"
 	"zotregistry.io/zot/pkg/extensions/monitoring"
@@ -55,7 +55,7 @@ func TestSyncRepoDBWithStorage(t *testing.T) {
 		manifestBlob, err := json.Marshal(manifests[1])
 		So(err, ShouldBeNil)
 
-		signedManifestDigest := digest.FromBytes(manifestBlob)
+		signedManifestDigest := godigest.FromBytes(manifestBlob)
 
 		config, layers, manifest, err := test.GetRandomImageComponents(100)
 		So(err, ShouldBeNil)
@@ -113,7 +113,7 @@ func TestSyncRepoDBWithStorage(t *testing.T) {
 		So(len(repos[0].Tags), ShouldEqual, 2)
 
 		for _, digest := range repos[0].Tags {
-			manifestMeta, err := repoDB.GetManifestMeta(digest)
+			manifestMeta, err := repoDB.GetManifestMeta(godigest.Digest(digest))
 			So(err, ShouldBeNil)
 			So(manifestMeta.ManifestBlob, ShouldNotBeNil)
 			So(manifestMeta.ConfigBlob, ShouldNotBeNil)

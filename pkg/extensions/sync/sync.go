@@ -436,7 +436,7 @@ func syncRegistry(ctx context.Context, regCfg RegistryConfig,
 				}
 			}
 
-			skipImage, err := canSkipImage(localRepo, tag, upstreamImageDigest.String(), imageStore, log)
+			skipImage, err := canSkipImage(localRepo, tag, upstreamImageDigest, imageStore, log)
 			if err != nil {
 				log.Error().Err(err).Msgf("couldn't check if the upstream image %s can be skipped",
 					upstreamImageRef.DockerReference())
@@ -448,7 +448,7 @@ func syncRegistry(ctx context.Context, regCfg RegistryConfig,
 			if skipImage {
 				log.Info().Msgf("already synced image %s, checking its signatures", upstreamImageRef.DockerReference())
 
-				skipNotarySig, err := canSkipNotarySignature(localRepo, tag, upstreamImageDigest.String(),
+				skipNotarySig, err := canSkipNotarySignature(localRepo, tag, upstreamImageDigest,
 					refs, imageStore, log)
 				if err != nil {
 					log.Error().Err(err).Msgf("couldn't check if the upstream image %s notary signature can be skipped",

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	. "github.com/smartystreets/goconvey/convey"
 	zerr "zotregistry.io/zot/errors"
@@ -55,7 +56,7 @@ func TestRoutes(t *testing.T) {
 		Convey("Get manifest", func() {
 			// overwrite controller storage
 			ctlr.StoreController.DefaultStore = &mocks.MockedImageStore{
-				GetImageManifestFn: func(repo string, reference string) ([]byte, string, string, error) {
+				GetImageManifestFn: func(repo string, reference string) ([]byte, godigest.Digest, string, error) {
 					return []byte{}, "", "", zerr.ErrRepoBadVersion
 				},
 			}
@@ -99,7 +100,7 @@ func TestRoutes(t *testing.T) {
 					"reference": "reference",
 				},
 				&mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", zerr.ErrRepoNotFound
 					},
 				})
@@ -112,7 +113,7 @@ func TestRoutes(t *testing.T) {
 				},
 
 				&mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", zerr.ErrManifestNotFound
 					},
 				})
@@ -124,7 +125,7 @@ func TestRoutes(t *testing.T) {
 					"reference": "reference",
 				},
 				&mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", zerr.ErrBadManifest
 					},
 				})
@@ -136,7 +137,7 @@ func TestRoutes(t *testing.T) {
 					"reference": "reference",
 				},
 				&mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", zerr.ErrBlobNotFound
 					},
 				})
@@ -149,7 +150,7 @@ func TestRoutes(t *testing.T) {
 					"reference": "reference",
 				},
 				&mocks.MockedImageStore{
-					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (string, error) {
+					PutImageManifestFn: func(repo, reference, mediaType string, body []byte) (godigest.Digest, error) {
 						return "", zerr.ErrRepoBadVersion
 					},
 				})
@@ -257,7 +258,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7a0437f04f83f084b7ed68ad9c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					DeleteBlobFn: func(repo, digest string) error {
+					DeleteBlobFn: func(repo string, digest godigest.Digest) error {
 						return ErrUnexpectedError
 					},
 				})
@@ -269,7 +270,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7b8437f04f83f084b7ed68ad8c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					DeleteBlobFn: func(repo, digest string) error {
+					DeleteBlobFn: func(repo string, digest godigest.Digest) error {
 						return zerr.ErrBadBlobDigest
 					},
 				})
@@ -282,7 +283,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7a0437f04f83f084b7ed68ad9c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					DeleteBlobFn: func(repo, digest string) error {
+					DeleteBlobFn: func(repo string, digest godigest.Digest) error {
 						return zerr.ErrBlobNotFound
 					},
 				})
@@ -295,7 +296,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7a0437f04f83f084b7ed68ad9c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					DeleteBlobFn: func(repo, digest string) error {
+					DeleteBlobFn: func(repo string, digest godigest.Digest) error {
 						return zerr.ErrRepoNotFound
 					},
 				})
@@ -325,7 +326,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "1234",
 				},
 				&mocks.MockedImageStore{
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrBadBlobDigest
 					},
 				})
@@ -338,7 +339,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "1234",
 				},
 				&mocks.MockedImageStore{
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -351,7 +352,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "1234",
 				},
 				&mocks.MockedImageStore{
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrBlobNotFound
 					},
 				})
@@ -364,7 +365,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "1234",
 				},
 				&mocks.MockedImageStore{
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, ErrUnexpectedError
 					},
 				})
@@ -377,7 +378,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "1234",
 				},
 				&mocks.MockedImageStore{
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return false, 0, nil
 					},
 				})
@@ -405,7 +406,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7a0437f04f83f084b7ed68ad9c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					GetBlobFn: func(repo, digest, mediaType string) (io.ReadCloser, int64, error) {
+					GetBlobFn: func(repo string, digest godigest.Digest, mediaType string) (io.ReadCloser, int64, error) {
 						return io.NopCloser(bytes.NewBuffer([]byte(""))), 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -418,7 +419,7 @@ func TestRoutes(t *testing.T) {
 					"digest": "sha256:7a0437f04f83f084b7ed68ad9c4a4947e12fc4e1b006b38129bac89114ec3621",
 				},
 				&mocks.MockedImageStore{
-					GetBlobFn: func(repo, digest, mediaType string) (io.ReadCloser, int64, error) {
+					GetBlobFn: func(repo string, digest godigest.Digest, mediaType string) (io.ReadCloser, int64, error) {
 						return io.NopCloser(bytes.NewBuffer([]byte(""))), 0, zerr.ErrBadBlobDigest
 					},
 				})
@@ -469,7 +470,7 @@ func TestRoutes(t *testing.T) {
 					NewBlobUploadFn: func(repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
 					},
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -486,7 +487,7 @@ func TestRoutes(t *testing.T) {
 					NewBlobUploadFn: func(repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
 					},
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -504,7 +505,7 @@ func TestRoutes(t *testing.T) {
 					NewBlobUploadFn: func(repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
 					},
-					CheckBlobFn: func(repo, digest string) (bool, int64, error) {
+					CheckBlobFn: func(repo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -520,7 +521,7 @@ func TestRoutes(t *testing.T) {
 					"Content-Length": "100",
 				},
 				&mocks.MockedImageStore{
-					FullBlobUploadFn: func(repo string, body io.Reader, digest string) (string, int64, error) {
+					FullBlobUploadFn: func(repo string, body io.Reader, digest godigest.Digest) (string, int64, error) {
 						return "session", 0, zerr.ErrBadBlobDigest
 					},
 				})
@@ -536,7 +537,7 @@ func TestRoutes(t *testing.T) {
 					"Content-Length": "100",
 				},
 				&mocks.MockedImageStore{
-					FullBlobUploadFn: func(repo string, body io.Reader, digest string) (string, int64, error) {
+					FullBlobUploadFn: func(repo string, body io.Reader, digest godigest.Digest) (string, int64, error) {
 						return "session", 20, nil
 					},
 				})
@@ -958,7 +959,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrBadBlobDigest
 					},
 				},
@@ -978,7 +979,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrBadUploadRange
 					},
 				},
@@ -998,7 +999,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrRepoNotFound
 					},
 				},
@@ -1018,7 +1019,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrUploadNotFound
 					},
 				},
@@ -1038,7 +1039,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return ErrUnexpectedError
 					},
 				},
@@ -1309,7 +1310,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrUploadNotFound
 					},
 				},
@@ -1329,7 +1330,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrUploadNotFound
 					},
 				},
@@ -1349,7 +1350,7 @@ func TestRoutes(t *testing.T) {
 					"session_id": "test",
 				},
 				&mocks.MockedImageStore{
-					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest string) error {
+					FinishBlobUploadFn: func(repo, uuid string, body io.Reader, digest godigest.Digest) error {
 						return zerr.ErrUploadNotFound
 					},
 				},
