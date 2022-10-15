@@ -286,15 +286,7 @@ func verifyImageSummaryFields(t *testing.T,
 
 	for index, history := range actualImageSummary.History {
 		// Digest could be empty string if the history entry is not associated with a layer
-		if expectedImageSummary.History[index].Layer.Digest == "" {
-			So(history.Layer.Digest, ShouldEqual, expectedImageSummary.History[index].Layer.Digest)
-		} else {
-			// We really need to be consistent about including/removing `sha256` in API replies
-			actualDigest, err := godigest.Parse(history.Layer.Digest)
-			So(err, ShouldBeNil)
-			So(actualDigest.Encoded(), ShouldEqual, expectedImageSummary.History[index].Layer.Digest)
-		}
-
+		So(history.Layer.Digest, ShouldEqual, expectedImageSummary.History[index].Layer.Digest)
 		So(history.Layer.Size, ShouldEqual, expectedImageSummary.History[index].Layer.Size)
 		So(
 			history.HistoryDescription.Author,
@@ -2980,18 +2972,15 @@ func TestBuildImageInfo(t *testing.T) {
 		)
 		So(err, ShouldBeNil)
 
-		manifest, err := olu.GetImageBlobManifest(invalid, manifestDigest)
-		So(err, ShouldBeNil)
-
 		imageConfig, err := olu.GetImageConfigInfo(invalid, manifestDigest)
 		So(err, ShouldBeNil)
 
 		isSigned := false
 
-		imageSummary := convert.BuildImageInfo(invalid, invalid, manifestDigest, manifest,
+		imageSummary := convert.BuildImageInfo(invalid, invalid, manifestDigest, ispecManifest,
 			imageConfig, isSigned)
 
-		So(len(imageSummary.Layers), ShouldEqual, len(manifest.Layers))
+		So(len(imageSummary.Layers), ShouldEqual, len(ispecManifest.Layers))
 		imageSummaryLayerSize, err := strconv.Atoi(*imageSummary.Size)
 		So(err, ShouldBeNil)
 		So(imageSummaryLayerSize, ShouldEqual, manifestLayersSize)

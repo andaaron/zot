@@ -648,23 +648,9 @@ func TestExtractImageDetails(t *testing.T) {
 		}
 		localTestDigestTry, _ := json.Marshal(localTestManifest)
 		localTestDigest := godigest.FromBytes(localTestDigestTry)
-		localTestManifestV1 := ispec.Manifest{
-			Config: ispec.Descriptor{
-				Digest: godigest.NewDigestFromEncoded(godigest.SHA256, configDigest.Encoded()),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					Size:   4,
-					Digest: godigest.NewDigestFromEncoded(godigest.SHA256, layerDigest.Encoded()),
-				},
-			},
-		}
 
 		Convey("extractImageDetails good workflow", func() {
 			mockOlum := mocks.OciLayoutUtilsMock{
-				GetImageBlobManifestFn: func(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
-					return localTestManifestV1, nil
-				},
 				GetImageConfigInfoFn: func(repo string, digest godigest.Digest) (
 					ispec.Image, error,
 				) {
@@ -687,9 +673,6 @@ func TestExtractImageDetails(t *testing.T) {
 
 		Convey("extractImageDetails bad ispec.ImageManifest", func() {
 			mockOlum := mocks.OciLayoutUtilsMock{
-				GetImageBlobManifestFn: func(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
-					return localTestManifestV1, nil
-				},
 				GetImageConfigInfoFn: func(repo string, digest godigest.Digest) (
 					ispec.Image, error,
 				) {
@@ -710,36 +693,8 @@ func TestExtractImageDetails(t *testing.T) {
 			So(resIspecImage, ShouldBeNil)
 		})
 
-		Convey("extractImageDetails bad ImageBlobManifest", func() {
-			mockOlum := mocks.OciLayoutUtilsMock{
-				GetImageBlobManifestFn: func(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
-					return localTestManifestV1, ErrTestError
-				},
-				GetImageConfigInfoFn: func(repo string, digest godigest.Digest) (
-					ispec.Image, error,
-				) {
-					return config, nil
-				},
-				GetImageManifestFn: func(repo string, tag string) (
-					ispec.Manifest, godigest.Digest, error,
-				) {
-					return localTestManifest, localTestDigest, nil
-				},
-			}
-			resDigest, resManifest, resIspecImage, resErr := extractImageDetails(ctx,
-				mockOlum, "zot-test", "latest", testLogger)
-			So(string(resDigest), ShouldEqual, "")
-			So(resManifest, ShouldBeNil)
-
-			So(resIspecImage, ShouldBeNil)
-			So(resErr, ShouldEqual, ErrTestError)
-		})
-
 		Convey("extractImageDetails bad imageConfig", func() {
 			mockOlum := mocks.OciLayoutUtilsMock{
-				GetImageBlobManifestFn: func(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
-					return localTestManifestV1, nil
-				},
 				GetImageConfigInfoFn: func(repo string, digest godigest.Digest) (
 					ispec.Image, error,
 				) {
@@ -767,9 +722,6 @@ func TestExtractImageDetails(t *testing.T) {
 					Username:     "jane_doe",
 				})
 			mockOlum := mocks.OciLayoutUtilsMock{
-				GetImageBlobManifestFn: func(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
-					return localTestManifestV1, nil
-				},
 				GetImageConfigInfoFn: func(repo string, digest godigest.Digest) (
 					ispec.Image, error,
 				) {

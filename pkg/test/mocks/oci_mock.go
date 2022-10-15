@@ -9,8 +9,8 @@ import (
 type OciLayoutUtilsMock struct {
 	GetImageManifestFn          func(repo string, reference string) (ispec.Manifest, godigest.Digest, error)
 	GetImageManifestsFn         func(image string) ([]ispec.Descriptor, error)
-	GetImageBlobManifestFn      func(imageDir string, digest godigest.Digest) (ispec.Manifest, error)
-	GetImageInfoFn              func(imageDir string, digest godigest.Digest) (ispec.Image, error)
+	GetImageBlobManifestFn      func(repo string, digest godigest.Digest) (ispec.Manifest, error)
+	GetImageInfoFn              func(repo string, digest godigest.Digest) (ispec.Image, error)
 	GetImageTagsWithTimestampFn func(repo string) ([]common.TagInfo, error)
 	GetImagePlatformFn          func(imageInfo ispec.Image) (string, string)
 	GetImageManifestSizeFn      func(repo string, manifestDigest godigest.Digest) int64
@@ -55,9 +55,9 @@ func (olum OciLayoutUtilsMock) GetImageBlobManifest(imageDir string, digest godi
 	return ispec.Manifest{}, nil
 }
 
-func (olum OciLayoutUtilsMock) GetImageInfo(imageDir string, digest godigest.Digest) (ispec.Image, error) {
+func (olum OciLayoutUtilsMock) GetImageInfo(repo string, digest godigest.Digest) (ispec.Image, error) {
 	if olum.GetImageInfoFn != nil {
-		return olum.GetImageInfoFn(imageDir, digest)
+		return olum.GetImageInfoFn(repo, digest)
 	}
 
 	return ispec.Image{}, nil

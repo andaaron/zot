@@ -13,7 +13,9 @@ import (
 )
 
 // EnableSearchExtension ...
-func EnableSearchExtension(config *config.Config, log log.Logger, storeController storage.StoreController) {
+func EnableSearchExtension(config *config.Config, storeController storage.StoreController,
+	repoDB repodb.RepoDB, log log.Logger,
+) {
 	log.Warn().Msg("skipping enabling search extension because given zot binary doesn't include this feature," +
 		"please build a binary that does so")
 }

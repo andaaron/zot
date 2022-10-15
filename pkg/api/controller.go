@@ -158,13 +158,15 @@ func (c *Controller) Run(reloadCtx context.Context) error {
 
 	c.Metrics = monitoring.NewMetricsServer(enabled, c.Log)
 
-	if err := c.InitImageStore(reloadCtx); err != nil {
+	if err := c.InitImageStore(); err != nil {
 		return err
 	}
 
 	if err := c.InitRepoDB(reloadCtx); err != nil {
 		return err
 	}
+
+	c.StartBackgroundTasks(reloadCtx)
 
 	monitoring.SetServerInfo(c.Metrics, c.Config.Commit, c.Config.BinaryType, c.Config.GoVersion,
 		c.Config.DistSpecVersion)
@@ -252,7 +254,7 @@ func (c *Controller) Run(reloadCtx context.Context) error {
 	return server.Serve(listener)
 }
 
-func (c *Controller) InitImageStore(reloadCtx context.Context) error {
+func (c *Controller) InitImageStore() error {
 	c.StoreController = storage.StoreController{}
 
 	linter := ext.GetLinter(c.Config, c.Log)
@@ -327,8 +329,6 @@ func (c *Controller) InitImageStore(reloadCtx context.Context) error {
 			c.StoreController.SubStore = subImageStore
 		}
 	}
-
-	c.StartBackgroundTasks(reloadCtx)
 
 	return nil
 }
@@ -531,7 +531,7 @@ func (c *Controller) StartBackgroundTasks(reloadCtx context.Context) {
 	// Enable extensions if extension config is provided for DefaultStore
 	if c.Config != nil && c.Config.Extensions != nil {
 		ext.EnableMetricsExtension(c.Config, c.Log, c.Config.Storage.RootDirectory)
-		ext.EnableSearchExtension(c.Config, c.Log, c.StoreController)
+		ext.EnableSearchExtension(c.Config, c.StoreController, c.RepoDB, c.Log)
 	}
 
 	if c.Config.Storage.SubPaths != nil {
