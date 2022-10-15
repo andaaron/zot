@@ -8,9 +8,8 @@ import (
 	"context"
 	"strings"
 
-	//nolint:gci
 	"github.com/99designs/gqlgen/graphql"
-	glob "github.com/bmatcuk/doublestar/v4" //nolint:gci
+	glob "github.com/bmatcuk/doublestar/v4"
 	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -521,7 +520,7 @@ func extractImageDetails(
 		return "", nil, nil, zerr.ErrUnauthorizedAccess
 	}
 
-	_, dig, err := layoutUtils.GetImageManifest(repo, tag)
+	manifest, dig, err := layoutUtils.GetImageManifest(repo, tag)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not retrieve image ispec manifest")
 
@@ -529,13 +528,6 @@ func extractImageDetails(
 	}
 
 	digest := dig
-
-	manifest, err := layoutUtils.GetImageBlobManifest(repo, digest)
-	if err != nil {
-		log.Error().Err(err).Msg("Could not retrieve image godigest manifest")
-
-		return "", nil, nil, err
-	}
 
 	imageConfig, err := layoutUtils.GetImageConfigInfo(repo, digest)
 	if err != nil {

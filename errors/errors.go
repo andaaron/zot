@@ -61,6 +61,7 @@ var (
 	ErrBadLayerCount           = errors.New("manifest: layers count doesn't correspond to config history")
 	ErrManifestMetaNotFound    = errors.New("repodb: image metadata not found for given manifest digest")
 	ErrRepoMetaNotFound        = errors.New("repodb: repo metadata not found for given repo name")
+	ErrTagMetaNotFound         = errors.New("repodb: tag metadata not found for given repo and tag names")
 	ErrTypeAssertionFailed     = errors.New("storage: failed DatabaseDriver type assertion")
 	ErrInvalidRequestParams    = errors.New("resolver: parameter sent has invalid value")
 )

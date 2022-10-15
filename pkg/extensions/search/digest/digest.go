@@ -45,7 +45,7 @@ func (digestinfo DigestInfo) GetImageTagsByDigest(repo, digest string) ([]ImageI
 
 		val, ok := manifest.Annotations[ispec.AnnotationRefName]
 		if ok {
-			imageBlobManifest, err := digestinfo.LayoutUtils.GetImageBlobManifest(repo, imageDigest)
+			imageManifest, err := digestinfo.LayoutUtils.GetImageBlobManifest(repo, imageDigest)
 			if err != nil {
 				digestinfo.Log.Error().Err(err).Msg("unable to read image blob manifest")
 
@@ -62,13 +62,13 @@ func (digestinfo DigestInfo) GetImageTagsByDigest(repo, digest string) ([]ImageI
 
 			// Check the image config matches the search digest
 			// This is a blob with mediaType application/vnd.oci.image.config.v1+json
-			if strings.Contains(imageBlobManifest.Config.Digest.String(), digest) {
+			if strings.Contains(imageManifest.Config.Digest.String(), digest) {
 				tags = append(tags, &val)
 			}
 
 			// Check to see if the individual layers in the oci image manifest match the digest
 			// These are blobs with mediaType application/vnd.oci.image.layer.v1.tar+gzip
-			for _, layer := range imageBlobManifest.Layers {
+			for _, layer := range imageManifest.Layers {
 				if strings.Contains(layer.Digest.String(), digest) {
 					tags = append(tags, &val)
 				}
@@ -78,7 +78,7 @@ func (digestinfo DigestInfo) GetImageTagsByDigest(repo, digest string) ([]ImageI
 
 			for _, entry := range tags {
 				if _, value := keys[*entry]; !value {
-					imageTags = append(imageTags, ImageInfoByDigest{Tag: *entry, Digest: imageDigest, Manifest: imageBlobManifest})
+					imageTags = append(imageTags, ImageInfoByDigest{Tag: *entry, Digest: imageDigest, Manifest: imageManifest})
 					keys[*entry] = true
 				}
 			}

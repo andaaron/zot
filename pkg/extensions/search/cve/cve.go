@@ -1,15 +1,17 @@
 package cveinfo
 
 import (
+	"encoding/json"
 	"fmt"
 
-	"github.com/opencontainers/go-digest"
+	godigest "github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"zotregistry.io/zot/pkg/extensions/search/common"
 	cvemodel "zotregistry.io/zot/pkg/extensions/search/cve/model"
 	"zotregistry.io/zot/pkg/extensions/search/cve/trivy"
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/storage"
+	"zotregistry.io/zot/pkg/storage/repodb"
 )
 
 type CveInfo interface {
@@ -29,7 +31,7 @@ type Scanner interface {
 
 type ImageInfoByCVE struct {
 	Tag      string
-	Digest   digest.Digest
+	Digest   godigest.Digest
 	Manifest ispec.Manifest
 }
 
@@ -39,22 +41,27 @@ type ImageCVESummary struct {
 }
 
 type BaseCveInfo struct {
-	Log         log.Logger
-	Scanner     Scanner
-	LayoutUtils common.OciLayoutUtils
+	Log     log.Logger
+	Scanner Scanner
+	RepoDB  repodb.RepoDB
 }
 
-func NewCVEInfo(storeController storage.StoreController, log log.Logger) *BaseCveInfo {
-	layoutUtils := common.NewBaseOciLayoutUtils(storeController, log)
-	scanner := trivy.NewScanner(storeController, layoutUtils, log)
+func NewCVEInfo(storeController storage.StoreController, repoDB repodb.RepoDB,
+	log log.Logger,
+) *BaseCveInfo {
+	scanner := trivy.NewScanner(storeController, repoDB, log)
 
-	return &BaseCveInfo{Log: log, Scanner: scanner, LayoutUtils: layoutUtils}
+	return &BaseCveInfo{
+		Log:     log,
+		Scanner: scanner,
+		RepoDB:  repoDB,
+	}
 }
 
 func (cveinfo BaseCveInfo) GetImageListForCVE(repo, cveID string) ([]ImageInfoByCVE, error) {
 	imgList := make([]ImageInfoByCVE, 0)
 
-	manifests, err := cveinfo.LayoutUtils.GetImageManifests(repo)
+	repoMeta, err := cveinfo.RepoDB.GetRepoMeta(repo)
 	if err != nil {
 		cveinfo.Log.Error().Err(err).Str("repo", repo).Str("cve-id", cveID).
 			Msg("unable to get list of tags from repo")
@@ -62,8 +69,29 @@ func (cveinfo BaseCveInfo) GetImageListForCVE(repo, cveID string) ([]ImageInfoBy
 		return imgList, err
 	}
 
-	for _, manifest := range manifests {
-		tag := manifest.Annotations[ispec.AnnotationRefName]
+	for tag, manifestDigestStr := range repoMeta.Tags {
+		manifestDigest, err := godigest.Parse(manifestDigestStr)
+		if err != nil {
+			cveinfo.Log.Error().Err(err).Str("repo", repo).Str("tag", tag).
+				Str("cve-id", cveID).Str("digest", manifestDigestStr).Msg("unable to parse digest")
+
+			return nil, err
+		}
+
+		manifestMeta, err := cveinfo.RepoDB.GetManifestMeta(manifestDigest)
+		if err != nil {
+			return nil, err
+		}
+
+		var manifestContent ispec.Manifest
+
+		err = json.Unmarshal(manifestMeta.ManifestBlob, &manifestContent)
+		if err != nil {
+			cveinfo.Log.Error().Err(err).Str("repo", repo).Str("tag", tag).
+				Str("cve-id", cveID).Msg("unable to unmashal manifest blob")
+
+			continue
+		}
 
 		image := fmt.Sprintf("%s:%s", repo, tag)
 
@@ -79,19 +107,10 @@ func (cveinfo BaseCveInfo) GetImageListForCVE(repo, cveID string) ([]ImageInfoBy
 
 		for id := range cveMap {
 			if id == cveID {
-				digest := manifest.Digest
-
-				imageBlobManifest, err := cveinfo.LayoutUtils.GetImageBlobManifest(repo, digest)
-				if err != nil {
-					cveinfo.Log.Error().Err(err).Msg("unable to read image blob manifest")
-
-					return []ImageInfoByCVE{}, err
-				}
-
 				imgList = append(imgList, ImageInfoByCVE{
 					Tag:      tag,
-					Digest:   digest,
-					Manifest: imageBlobManifest,
+					Digest:   manifestDigest,
+					Manifest: manifestContent,
 				})
 
 				break
@@ -103,7 +122,7 @@ func (cveinfo BaseCveInfo) GetImageListForCVE(repo, cveID string) ([]ImageInfoBy
 }
 
 func (cveinfo BaseCveInfo) GetImageListWithCVEFixed(repo, cveID string) ([]common.TagInfo, error) {
-	tagsInfo, err := cveinfo.LayoutUtils.GetImageTagsWithTimestamp(repo)
+	repoMeta, err := cveinfo.RepoDB.GetRepoMeta(repo)
 	if err != nil {
 		cveinfo.Log.Error().Err(err).Str("repo", repo).Str("cve-id", cveID).
 			Msg("unable to get list of tags from repo")
@@ -112,12 +131,46 @@ func (cveinfo BaseCveInfo) GetImageListWithCVEFixed(repo, cveID string) ([]commo
 	}
 
 	vulnerableTags := make([]common.TagInfo, 0)
+	allTags := make([]common.TagInfo, 0)
 
 	var hasCVE bool
 
-	for _, tag := range tagsInfo {
-		image := fmt.Sprintf("%s:%s", repo, tag.Name)
-		tagInfo := common.TagInfo{Name: tag.Name, Timestamp: tag.Timestamp, Digest: tag.Digest}
+	for tag, manifestDigestStr := range repoMeta.Tags {
+		manifestDigest, err := godigest.Parse(manifestDigestStr)
+		if err != nil {
+			cveinfo.Log.Error().Err(err).Str("repo", repo).Str("tag", tag).
+				Str("cve-id", cveID).Str("digest", manifestDigestStr).Msg("unable to parse digest")
+
+			continue
+		}
+
+		manifestMeta, err := cveinfo.RepoDB.GetManifestMeta(manifestDigest)
+		if err != nil {
+			cveinfo.Log.Error().Err(err).Str("repo", repo).Str("tag", tag).
+				Str("cve-id", cveID).Msg("unable to obtain manifest meta")
+
+			continue
+		}
+
+		var configContent ispec.Image
+
+		err = json.Unmarshal(manifestMeta.ConfigBlob, &configContent)
+		if err != nil {
+			cveinfo.Log.Error().Err(err).Str("repo", repo).Str("tag", tag).
+				Str("cve-id", cveID).Msg("unable to unmashal manifest blob")
+
+			continue
+		}
+
+		tagInfo := common.TagInfo{
+			Name:      tag,
+			Timestamp: common.GetImageLastUpdated(configContent),
+			Digest:    manifestDigest,
+		}
+
+		allTags = append(allTags, tagInfo)
+
+		image := fmt.Sprintf("%s:%s", repo, tag)
 
 		isValidImage, _ := cveinfo.Scanner.IsImageFormatScannable(image)
 		if !isValidImage {
@@ -154,16 +207,19 @@ func (cveinfo BaseCveInfo) GetImageListWithCVEFixed(repo, cveID string) ([]commo
 		}
 	}
 
+	var fixedTags []common.TagInfo
+
 	if len(vulnerableTags) != 0 {
 		cveinfo.Log.Info().Str("repo", repo).Str("cve-id", cveID).Msgf("Vulnerable tags: %v", vulnerableTags)
-		tagsInfo = common.GetFixedTags(tagsInfo, vulnerableTags)
-		cveinfo.Log.Info().Str("repo", repo).Str("cve-id", cveID).Msgf("Fixed tags: %v", tagsInfo)
+		fixedTags = common.GetFixedTags(allTags, vulnerableTags)
+		cveinfo.Log.Info().Str("repo", repo).Str("cve-id", cveID).Msgf("Fixed tags: %v", fixedTags)
 	} else {
 		cveinfo.Log.Info().Str("repo", repo).Str("cve-id", cveID).
 			Msg("image does not contain any tag that have given cve")
+		fixedTags = allTags
 	}
 
-	return tagsInfo, nil
+	return fixedTags, nil
 }
 
 func (cveinfo BaseCveInfo) GetCVEListForImage(image string) (map[string]cvemodel.CVE, error) {
