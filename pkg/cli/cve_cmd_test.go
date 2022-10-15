@@ -6,7 +6,6 @@ package cli //nolint:testpackage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -15,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/spf13/cobra"
 	"gopkg.in/resty.v1"
@@ -24,10 +22,6 @@ import (
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
-	"zotregistry.io/zot/pkg/extensions/monitoring"
-	"zotregistry.io/zot/pkg/log"
-	"zotregistry.io/zot/pkg/storage"
-	"zotregistry.io/zot/pkg/storage/local"
 	"zotregistry.io/zot/pkg/test"
 )
 
@@ -808,8 +802,6 @@ func TestServerCVEResponse(t *testing.T) {
 	}(ctlr)
 
 	Convey("Test CVE by image name", t, func() {
-		err = triggerUploadForTestImages(url)
-
 		args := []string{"cvetest", "--image", "zot-cve-test:0.0.1"}
 		configPath := makeConfigFile(fmt.Sprintf(`{"configs":[{"_name":"cvetest","url":"%s","showspinner":false}]}`, url))
 		defer os.Remove(configPath)
@@ -952,53 +944,6 @@ func TestServerCVEResponse(t *testing.T) {
 			So(strings.TrimSpace(str), ShouldNotContainSubstring, "IMAGE NAME TAG DIGEST SIZE")
 		})
 	})
-}
-
-// triggerUploadForTestImages is paired with testSetup and is supposed to trigger events when pushing an image
-// by pushing just the manifest.
-func triggerUploadForTestImages(baseURL string) error {
-	log := log.NewLogger("debug", "")
-	metrics := monitoring.NewMetricsServer(false, log)
-	storage := local.NewImageStore("../../test/data/", false, storage.DefaultGCDelay,
-		false, false, log, metrics, nil)
-
-	repos, err := storage.GetRepositories()
-	if err != nil {
-		return err
-	}
-
-	for _, repo := range repos {
-		indexBlob, err := storage.GetIndexContent(repo)
-		if err != nil {
-			return err
-		}
-
-		var indexJSON ispec.Index
-
-		err = json.Unmarshal(indexBlob, &indexJSON)
-		if err != nil {
-			return err
-		}
-
-		for _, manifest := range indexJSON.Manifests {
-			tag := manifest.Annotations[ispec.AnnotationRefName]
-
-			manifestBlob, _, _, err := storage.GetImageManifest(repo, tag)
-			if err != nil {
-				return err
-			}
-
-			_, err = resty.R().
-				SetHeader("Content-type", "application/vnd.oci.image.manifest.v1+json").
-				SetBody(manifestBlob).
-				Put(baseURL + "/v2/" + repo + "/manifests/" + tag)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func MockNewCveCommand(searchService SearchService) *cobra.Command {

@@ -18,7 +18,8 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	size := int64(0)
 	log := log.NewLogger("debug", "")
 	allHistory := []*gql_generated.LayerHistory{}
-	formattedManifestDigest := manifestDigest.Hex()
+	formattedManifestDigest := manifestDigest.String()
+	configDigest := manifest.Config.Digest.String()
 	annotations := common.GetAnnotations(manifest.Annotations, imageConfig.Config.Labels)
 	lastUpdated := common.GetImageLastUpdated(imageConfig)
 
@@ -26,7 +27,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	if len(history) == 0 {
 		for _, layer := range manifest.Layers {
 			size += layer.Size
-			digest := layer.Digest.Hex()
+			digest := layer.Digest.String()
 			layerSize := strconv.FormatInt(layer.Size, 10)
 
 			layer := &gql_generated.LayerSummary{
@@ -46,7 +47,6 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 		}
 
 		formattedSize := strconv.FormatInt(size, 10)
-		configDigest := manifest.Config.Digest.Hex()
 
 		imageInfo := &gql_generated.ImageSummary{
 			RepoName:      &repo,
@@ -97,7 +97,6 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 			formattedSize := strconv.FormatInt(size, 10)
 
 			log.Error().Err(zerr.ErrBadLayerCount).Msg("error on creating layer history for ImageSummary")
-			configDigest := manifest.Config.Digest.Hex()
 
 			return &gql_generated.ImageSummary{
 				RepoName:      &repo,
@@ -125,7 +124,7 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 		}
 
 		size += manifest.Layers[layersIterator].Size
-		digest := manifest.Layers[layersIterator].Digest.Hex()
+		digest := manifest.Layers[layersIterator].Digest.String()
 		layerSize := strconv.FormatInt(manifest.Layers[layersIterator].Size, 10)
 
 		layer := &gql_generated.LayerSummary{
@@ -144,8 +143,6 @@ func BuildImageInfo(repo string, tag string, manifestDigest godigest.Digest,
 	}
 
 	formattedSize := strconv.FormatInt(size, 10)
-
-	configDigest := manifest.Config.Digest.Hex()
 
 	imageInfo := &gql_generated.ImageSummary{
 		RepoName:      &repo,

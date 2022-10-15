@@ -20,8 +20,8 @@ import (
 type OciLayoutUtils interface { //nolint: interfacebloat
 	GetImageManifest(repo string, reference string) (ispec.Manifest, godigest.Digest, error)
 	GetImageManifests(image string) ([]ispec.Descriptor, error)
-	GetImageBlobManifest(imageDir string, digest godigest.Digest) (ispec.Manifest, error)
-	GetImageInfo(imageDir string, digest godigest.Digest) (ispec.Image, error)
+	GetImageBlobManifest(repo string, digest godigest.Digest) (ispec.Manifest, error)
+	GetImageInfo(repo string, configDigest godigest.Digest) (ispec.Image, error)
 	GetImageTagsWithTimestamp(repo string) ([]TagInfo, error)
 	GetImagePlatform(imageInfo ispec.Image) (string, string)
 	GetImageManifestSize(repo string, manifestDigest godigest.Digest) int64
@@ -115,12 +115,12 @@ func (olu BaseOciLayoutUtils) GetImageManifests(image string) ([]ispec.Descripto
 	return index.Manifests, nil
 }
 
-func (olu BaseOciLayoutUtils) GetImageBlobManifest(imageDir string, digest godigest.Digest) (ispec.Manifest, error) {
+func (olu BaseOciLayoutUtils) GetImageBlobManifest(repo string, digest godigest.Digest) (ispec.Manifest, error) {
 	var blobIndex ispec.Manifest
 
-	imageStore := olu.StoreController.GetImageStore(imageDir)
+	imageStore := olu.StoreController.GetImageStore(repo)
 
-	blobBuf, err := imageStore.GetBlobContent(imageDir, digest)
+	blobBuf, err := imageStore.GetBlobContent(repo, digest)
 	if err != nil {
 		olu.Log.Error().Err(err).Msg("unable to open image metadata file")
 
@@ -136,12 +136,12 @@ func (olu BaseOciLayoutUtils) GetImageBlobManifest(imageDir string, digest godig
 	return blobIndex, nil
 }
 
-func (olu BaseOciLayoutUtils) GetImageInfo(imageDir string, digest godigest.Digest) (ispec.Image, error) {
+func (olu BaseOciLayoutUtils) GetImageInfo(repo string, configDigest godigest.Digest) (ispec.Image, error) {
 	var imageInfo ispec.Image
 
-	imageStore := olu.StoreController.GetImageStore(imageDir)
+	imageStore := olu.StoreController.GetImageStore(repo)
 
-	blobBuf, err := imageStore.GetBlobContent(imageDir, digest)
+	blobBuf, err := imageStore.GetBlobContent(repo, configDigest)
 	if err != nil {
 		olu.Log.Error().Err(err).Msg("unable to open image layers file")
 
@@ -350,7 +350,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 		configSize := manifest.Config.Size
 
 		repoBlob2Size[man.Digest.String()] = manifestSize
-		repoBlob2Size[manifest.Config.Digest.Hex()] = configSize
+		repoBlob2Size[manifest.Config.Digest.String()] = configSize
 
 		imageConfigInfo, err := olu.GetImageConfigInfo(name, man.Digest)
 		if err != nil {
@@ -375,7 +375,7 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 		for _, layer := range manifest.Layers {
 			layerInfo := LayerSummary{}
 
-			layerInfo.Digest = layer.Digest.Hex()
+			layerInfo.Digest = layer.Digest.String()
 
 			repoBlob2Size[layerInfo.Digest] = layer.Size
 
@@ -440,8 +440,8 @@ func (olu BaseOciLayoutUtils) GetExpandedRepoInfo(name string) (RepoInfo, error)
 		olu.Log.Debug().Msgf("all history %v", allHistory)
 
 		size := strconv.Itoa(int(imageSize))
-		manifestDigest := man.Digest.Hex()
-		configDigest := manifest.Config.Digest.Hex()
+		manifestDigest := man.Digest.String()
+		configDigest := manifest.Config.Digest.String()
 		lastUpdated := GetImageLastUpdated(imageConfigInfo)
 		score := 0
 
