@@ -396,12 +396,24 @@ func (rh *RouteHandler) GetManifest(response http.ResponseWriter, request *http.
 	}
 
 	if rh.c.RepoDB != nil {
-		err := rh.c.RepoDB.IncrementManifestDownloads(digest)
+		// check is image is a signature
+		isSignature, _, _, err := storage.CheckIsImageSignature(name, content, reference,
+			rh.c.StoreController)
 		if err != nil {
-			rh.c.Log.Error().Err(err).Msg("unexpected error")
+			rh.c.Log.Error().Err(err).Msg("can't check if manifest is a signature or not")
 			response.WriteHeader(http.StatusInternalServerError)
 
 			return
+		}
+
+		if !isSignature {
+			err := rh.c.RepoDB.IncrementManifestDownloads(digest)
+			if err != nil {
+				rh.c.Log.Error().Err(err).Msg("unexpected error")
+				response.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
 		}
 	}
 
