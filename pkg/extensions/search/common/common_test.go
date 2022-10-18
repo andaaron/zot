@@ -2536,6 +2536,83 @@ func TestCleaningFilteringParamsGlobalSearch(t *testing.T) {
 	})
 }
 
+func TestGlobalSearchFiltering(t *testing.T) {
+	Convey("Global search HasToBeSigned filtering", t, func() {
+		dir := t.TempDir()
+		port := GetFreePort()
+		baseURL := GetBaseURL(port)
+		conf := config.New()
+		conf.HTTP.Port = port
+		conf.Storage.RootDirectory = dir
+
+		defaultVal := true
+		conf.Extensions = &extconf.ExtensionConfig{
+			Search: &extconf.SearchConfig{Enable: &defaultVal},
+		}
+
+		ctlr := api.NewController(conf)
+
+		go startServer(ctlr)
+		defer stopServer(ctlr)
+		WaitTillServerReady(baseURL)
+
+		config, layers, manifest, err := GetRandomImageComponents(100)
+		So(err, ShouldBeNil)
+
+		err = UploadImage(
+			Image{
+				Config:   config,
+				Layers:   layers,
+				Manifest: manifest,
+				Tag:      "test",
+			},
+			baseURL,
+			"unsigned-repo",
+		)
+		So(err, ShouldBeNil)
+
+		config, layers, manifest, err = GetRandomImageComponents(100)
+		So(err, ShouldBeNil)
+
+		err = UploadImage(
+			Image{
+				Config:   config,
+				Layers:   layers,
+				Manifest: manifest,
+				Tag:      "test",
+			},
+			baseURL,
+			"signed-repo",
+		)
+		So(err, ShouldBeNil)
+
+		err = SignImageUsingCosign("signed-repo:test", port)
+		So(err, ShouldBeNil)
+
+		query := `{
+			GlobalSearch(query:"repo",
+			filter:{HasToBeSigned:true}) {
+				Repos {
+					Name
+				}
+			}
+		}`
+
+		resp, err := resty.R().Get(baseURL + graphqlQueryPrefix + "?query=" + url.QueryEscape(query))
+		So(resp, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+
+		responseStruct := &GlobalSearchResultResp{}
+
+		err = json.Unmarshal(resp.Body(), responseStruct)
+		So(err, ShouldBeNil)
+
+		So(responseStruct.GlobalSearchResult.GlobalSearch.Repos, ShouldNotBeEmpty)
+		So(responseStruct.GlobalSearchResult.GlobalSearch.Repos[0].Name, ShouldResemble, "signed-repo")
+	})
+}
+
 func TestGlobalSearchWithInvalidInput(t *testing.T) {
 	Convey("Global search with invalid input", t, func() {
 		dir := t.TempDir()
