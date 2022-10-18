@@ -119,7 +119,7 @@ func (service searchService) getImagesGQL(ctx context.Context, config searchConf
 	imageName string,
 ) (*imageListStructGQL, error) {
 	query := fmt.Sprintf(`{ImageList(repo: "%s") {`+`
-									RepoName Tag Digest ConfigDigest Size Layers {Size Digest}}
+									RepoName Tag Digest ConfigDigest Size Layers {Size Digest} IsSigned}
 							  }`,
 		imageName)
 	result := &imageListStructGQL{}
@@ -855,6 +855,7 @@ type imageStruct struct {
 	Layers       []layer `json:"layers"`
 	Size         string  `json:"size"`
 	verbose      bool
+	IsSigned     bool `json:"isSigned"`
 }
 
 type imageListStructGQL struct {
@@ -920,6 +921,7 @@ func (img imageStruct) stringPlainText(maxImgNameLen, maxTagLen int) (string, er
 
 	table.SetColMinWidth(colDigestIndex, digestWidth)
 	table.SetColMinWidth(colSizeIndex, sizeWidth)
+	table.SetColMinWidth(colIsSignedIndex, isSignedWidth)
 
 	if img.verbose {
 		table.SetColMinWidth(colConfigIndex, configWidth)
@@ -938,12 +940,14 @@ func (img imageStruct) stringPlainText(maxImgNameLen, maxTagLen int) (string, er
 	imgSize, _ := strconv.ParseUint(img.Size, 10, 64)
 	size := ellipsize(strings.ReplaceAll(humanize.Bytes(imgSize), " ", ""), sizeWidth, ellipsis)
 	configDigest = ellipsize(configDigest, configWidth, "")
-	row := make([]string, 6) //nolint:gomnd
+	isSigned := img.IsSigned
+	row := make([]string, 7) //nolint:gomnd
 
 	row[colImageNameIndex] = imageName
 	row[colTagIndex] = tagName
 	row[colDigestIndex] = manifestDigest
 	row[colSizeIndex] = size
+	row[colIsSignedIndex] = strconv.FormatBool(isSigned)
 
 	if img.verbose {
 		row[colConfigIndex] = configDigest
@@ -959,7 +963,7 @@ func (img imageStruct) stringPlainText(maxImgNameLen, maxTagLen int) (string, er
 			layerDigest := strings.TrimPrefix(entry.Digest, "sha256:")
 			layerDigest = ellipsize(layerDigest, digestWidth, "")
 
-			layerRow := make([]string, 6) //nolint:gomnd
+			layerRow := make([]string, 7) //nolint:gomnd
 			layerRow[colImageNameIndex] = ""
 			layerRow[colTagIndex] = ""
 			layerRow[colDigestIndex] = ""
@@ -1126,6 +1130,7 @@ const (
 	tagWidth       = 24
 	digestWidth    = 8
 	sizeWidth      = 8
+	isSignedWidth  = 8
 	configWidth    = 8
 	layersWidth    = 8
 	ellipsis       = "..."
@@ -1134,8 +1139,9 @@ const (
 	colTagIndex       = 1
 	colDigestIndex    = 2
 	colConfigIndex    = 3
-	colLayersIndex    = 4
-	colSizeIndex      = 5
+	colIsSignedIndex  = 4
+	colLayersIndex    = 5
+	colSizeIndex      = 6
 
 	cveIDWidth       = 16
 	cveSeverityWidth = 8
