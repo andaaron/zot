@@ -581,10 +581,12 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, fil
 			if score := ScoreRepoName(searchText, string(repoName)); score != -1 {
 				var (
 					// specific values used for sorting that need to be calculated based on all manifests from the repo
-					repoDownloads   = 0
-					repoLastUpdated time.Time
-					osSet           = map[string]bool{}
-					archSet         = map[string]bool{}
+					repoDownloads     = 0
+					repoLastUpdated   time.Time
+					firstImageChecked = true
+					osSet             = map[string]bool{}
+					archSet           = map[string]bool{}
+					isSigned          = false
 				)
 
 				for _, manifestDigest := range repoMeta.Tags {
@@ -623,8 +625,11 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, fil
 						return errors.Wrapf(err, "repodb: error while unmarshaling image config referenced by digest %s", manifestDigest)
 					}
 
-					if repoLastUpdated.Before(imageLastUpdated) {
+					if firstImageChecked || repoLastUpdated.Before(imageLastUpdated) {
 						repoLastUpdated = imageLastUpdated
+						firstImageChecked = false
+
+						isSigned = checkIsSigned(manifestMeta.Signatures)
 					}
 
 					manifestMetadataMap[manifestDigest] = manifestMeta
@@ -633,7 +638,7 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, fil
 				repoFilterData := filterData{
 					OsList:   getMapKeys(osSet),
 					ArchList: getMapKeys(archSet),
-					IsSigned: false,
+					IsSigned: isSigned,
 				}
 
 				if !acceptedByFilter(filter, repoFilterData) {
@@ -662,6 +667,16 @@ func (bdw BoltDBWrapper) SearchRepos(ctx context.Context, searchText string, fil
 	})
 
 	return foundRepos, foundManifestMetadataMap, err
+}
+
+func checkIsSigned(signatures map[string][]string) bool {
+	for _, signatures := range signatures {
+		if len(signatures) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func ScoreRepoName(searchText string, repoName string) int {
