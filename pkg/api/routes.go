@@ -400,10 +400,14 @@ func (rh *RouteHandler) GetManifest(response http.ResponseWriter, request *http.
 		isSignature, _, _, err := storage.CheckIsImageSignature(name, content, reference,
 			rh.c.StoreController)
 		if err != nil {
-			rh.c.Log.Error().Err(err).Msg("can't check if manifest is a signature or not")
-			response.WriteHeader(http.StatusInternalServerError)
+			if errors.Is(err, zerr.ErrOrphanSignature) {
+				rh.c.Log.Warn().Err(err).Msg("image has signature format but it doesn't sign any image")
+			} else {
+				rh.c.Log.Error().Err(err).Msg("can't check if manifest is a signature or not")
+				response.WriteHeader(http.StatusInternalServerError)
 
-			return
+				return
+			}
 		}
 
 		if !isSignature {
@@ -516,6 +520,16 @@ func (rh *RouteHandler) UpdateManifest(response http.ResponseWriter, request *ht
 		isSignature, signatureType, signedManifestDigest, err := storage.CheckIsImageSignature(name, body, reference,
 			rh.c.StoreController)
 		if err != nil {
+			if errors.Is(err, zerr.ErrOrphanSignature) {
+				rh.c.Log.Warn().Err(err).Msg("image has signature format but it doesn't sign any image")
+
+				response.Header().Set("Location", fmt.Sprintf("/v2/%s/manifests/%s", name, digest))
+				response.Header().Set(constants.DistContentDigestKey, digest.String())
+				response.WriteHeader(http.StatusCreated)
+
+				return
+			}
+
 			rh.c.Log.Error().Err(err).Msg("can't check if image is a signature or not")
 
 			if err = imgStore.DeleteImageManifest(name, reference); err != nil {
@@ -650,6 +664,12 @@ func (rh *RouteHandler) DeleteManifest(response http.ResponseWriter, request *ht
 		isSignature, signatureType, signedManifestDigest, err := storage.CheckIsImageSignature(name, manifestBlob,
 			reference, rh.c.StoreController)
 		if err != nil {
+			if errors.Is(err, zerr.ErrOrphanSignature) {
+				response.WriteHeader(http.StatusAccepted)
+
+				return
+			}
+
 			rh.c.Log.Error().Err(err).Msg("can't check if image is a signature or not")
 			response.WriteHeader(http.StatusInternalServerError)
 

@@ -123,4 +123,70 @@ func TestSyncRepoDBWithStorage(t *testing.T) {
 			}
 		}
 	})
+
+	Convey("Ignore orphan signatures", t, func() {
+		rootDir := t.TempDir()
+		repo := "repo"
+
+		imageStore := local.NewImageStore(rootDir, false, 0, false, false,
+			log.NewLogger("debug", ""), monitoring.NewMetricsServer(false, log.NewLogger("debug", "")), nil)
+
+		storeController := storage.StoreController{DefaultStore: imageStore}
+		// add an image
+		config, layers, manifest, err := test.GetRandomImageComponents(100)
+		So(err, ShouldBeNil)
+
+		err = test.WriteImageToFileSystem(
+			test.Image{
+				Config:   config,
+				Layers:   layers,
+				Manifest: manifest,
+				Tag:      "tag1",
+			},
+			repo,
+			storeController)
+		So(err, ShouldBeNil)
+
+		// add mock cosign signature without pushing the signed image
+		_, _, manifest, err = test.GetRandomImageComponents(100)
+		So(err, ShouldBeNil)
+
+		signatureTag, err := test.GetCosignSignatureTagForManifest(manifest)
+		So(err, ShouldBeNil)
+
+		// get the body of the signature
+		config, layers, manifest, err = test.GetRandomImageComponents(100)
+		So(err, ShouldBeNil)
+
+		err = test.WriteImageToFileSystem(
+			test.Image{
+				Config:   config,
+				Layers:   layers,
+				Manifest: manifest,
+				Tag:      signatureTag,
+			},
+			repo,
+			storeController)
+		So(err, ShouldBeNil)
+
+		// test that we have only 1 image inside the repo
+		repoDB, err := repodb.NewBoltDBWrapper(repodb.BoltDBParameters{
+			RootDir: rootDir,
+		})
+		So(err, ShouldBeNil)
+
+		err = repodb.SyncRepoDB(repoDB, storeController, log.NewLogger("debug", ""))
+		So(err, ShouldBeNil)
+
+		repos, err := repoDB.GetMultipleRepoMeta(
+			context.Background(),
+			func(repoMeta repodb.RepoMetadata) bool { return true },
+			repodb.PageInput{},
+		)
+		So(err, ShouldBeNil)
+
+		So(len(repos), ShouldEqual, 1)
+		So(repos[0].Tags, ShouldContainKey, "tag1")
+		So(repos[0].Tags, ShouldNotContainKey, signatureTag)
+	})
 }

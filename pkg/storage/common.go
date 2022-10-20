@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"path"
 	"strings"
 
@@ -446,6 +447,8 @@ func IsSupportedMediaType(mediaType string) bool {
 func CheckIsImageSignature(repoName string, manifestBlob []byte, reference string,
 	storeController StoreController,
 ) (bool, string, godigest.Digest, error) {
+	const cosign = "cosign"
+
 	var manifestContent artifactspec.Manifest
 
 	err := json.Unmarshal(manifestBlob, &manifestContent)
@@ -459,9 +462,15 @@ func CheckIsImageSignature(repoName string, manifestBlob []byte, reference strin
 
 		_, signedImageManifestDigest, _, err := imgStore.GetImageManifest(repoName,
 			manifestContent.Subject.Digest.String())
-		if err == nil && signedImageManifestDigest != "" {
-			return true, "notation", signedImageManifestDigest, nil
+		if err != nil {
+			if errors.Is(err, zerr.ErrOrphanSignature) {
+				return true, "notation", signedImageManifestDigest, zerr.ErrOrphanSignature
+			}
+
+			return false, "", "", err
 		}
+
+		return true, "notation", signedImageManifestDigest, nil
 	}
 
 	// check cosign
@@ -479,9 +488,19 @@ func CheckIsImageSignature(repoName string, manifestBlob []byte, reference strin
 
 		_, signedImageManifestDigest, _, err := imgStore.GetImageManifest(repoName,
 			signedImageManifestDigest.String())
-		if err == nil && signedImageManifestDigest != "" {
-			return true, "cosign", signedImageManifestDigest, nil
+		if err != nil {
+			if errors.Is(err, zerr.ErrManifestNotFound) {
+				return true, cosign, signedImageManifestDigest, zerr.ErrOrphanSignature
+			}
+
+			return false, "", "", err
 		}
+
+		if signedImageManifestDigest.String() == "" {
+			return true, cosign, signedImageManifestDigest, zerr.ErrOrphanSignature
+		}
+
+		return true, cosign, signedImageManifestDigest, nil
 	}
 
 	return false, "", "", nil
