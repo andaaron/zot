@@ -64,4 +64,5 @@ var (
 	ErrTagMetaNotFound         = errors.New("repodb: tag metadata not found for given repo and tag names")
 	ErrTypeAssertionFailed     = errors.New("storage: failed DatabaseDriver type assertion")
 	ErrInvalidRequestParams    = errors.New("resolver: parameter sent has invalid value")
+	ErrOrphanSignature         = errors.New("repodb: signature detected but signed image doesn't exit")
 )
