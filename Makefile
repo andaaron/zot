@@ -26,7 +26,7 @@ hyphen:= -
 extended-name:=
 
 .PHONY: all
-all: modcheck swagger binary binary-minimal binary-debug cli bench exporter-minimal verify-config test covhtml check
+all: modcheck swagger binary binary-minimal binary-debug binary-ui cli bench exporter-minimal verify-config test covhtml check
 
 .PHONY: modcheck
 modcheck:
