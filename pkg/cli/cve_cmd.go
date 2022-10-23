@@ -10,7 +10,6 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
-
 	zotErrors "zotregistry.io/zot/errors"
 )
 
