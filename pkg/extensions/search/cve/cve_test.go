@@ -1074,25 +1074,25 @@ func TestCVEStruct(t *testing.T) {
 		cveSummary, err = cveInfo.GetCVESummaryForImage("repo2:1.0.0")
 		So(err, ShouldEqual, zerr.ErrScanNotSupported)
 		So(cveSummary.Count, ShouldEqual, 0)
-		So(cveSummary.MaxSeverity, ShouldEqual, "UNKNOWN")
+		So(cveSummary.MaxSeverity, ShouldEqual, "")
 
 		// Tag is not found
 		cveSummary, err = cveInfo.GetCVESummaryForImage("repo3:1.0.0")
 		So(err, ShouldEqual, zerr.ErrTagMetaNotFound)
 		So(cveSummary.Count, ShouldEqual, 0)
-		So(cveSummary.MaxSeverity, ShouldEqual, "UNKNOWN")
+		So(cveSummary.MaxSeverity, ShouldEqual, "")
 
 		// Manifest is not found
 		cveSummary, err = cveInfo.GetCVESummaryForImage("repo5:nonexitent-manifest")
 		So(err, ShouldEqual, zerr.ErrManifestMetaNotFound)
 		So(cveSummary.Count, ShouldEqual, 0)
-		So(cveSummary.MaxSeverity, ShouldEqual, "UNKNOWN")
+		So(cveSummary.MaxSeverity, ShouldEqual, "")
 
 		// Repo is not found
 		cveSummary, err = cveInfo.GetCVESummaryForImage("repo100:1.0.0")
 		So(err, ShouldEqual, zerr.ErrRepoMetaNotFound)
 		So(cveSummary.Count, ShouldEqual, 0)
-		So(cveSummary.MaxSeverity, ShouldEqual, "UNKNOWN")
+		So(cveSummary.MaxSeverity, ShouldEqual, "")
 
 		t.Log("Test GetCVEListForImage")
 
@@ -1252,7 +1252,7 @@ func TestCVEStruct(t *testing.T) {
 		cveSummary, err = cveInfo.GetCVESummaryForImage("repo1:0.1.0")
 		So(err, ShouldNotBeNil)
 		So(cveSummary.Count, ShouldEqual, 0)
-		So(cveSummary.MaxSeverity, ShouldEqual, "UNKNOWN")
+		So(cveSummary.MaxSeverity, ShouldEqual, "")
 
 		cveMap, err = cveInfo.GetCVEListForImage("repo1:0.1.0")
 		So(err, ShouldNotBeNil)
