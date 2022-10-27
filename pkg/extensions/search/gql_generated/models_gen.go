@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// Annotation is Key:Value pair representing custom data which is otherwise
+// not available in other fields.
 type Annotation struct {
 	Key   *string `json:"Key"`
 	Value *string `json:"Value"`
@@ -30,6 +32,9 @@ type CVEResultForImage struct {
 	Page    *PageInfo `json:"Page"`
 }
 
+// Apply various types of filters to the queries made for repos and images.
+// For example we only want to display repos which contain images with
+// a certain OS ar Architecture.
 type Filter struct {
 	Os            []*string `json:"Os"`
 	Arch          []*string `json:"Arch"`
@@ -44,7 +49,9 @@ type GlobalSearchResult struct {
 	Layers []*LayerSummary `json:"Layers"`
 }
 
+// Information on how a layer was created
 type HistoryDescription struct {
+	// Created is the time when the layer was created.
 	Created *time.Time `json:"Created"`
 	// CreatedBy is the command which created the layer.
 	CreatedBy *string `json:"CreatedBy"`
@@ -81,13 +88,16 @@ type ImageSummary struct {
 	Authors         *string                    `json:"Authors"`
 }
 
+// Contains summary of vulnerabilities found in a specific image
 type ImageVulnerabilitySummary struct {
 	MaxSeverity *string `json:"MaxSeverity"`
 	Count       *int    `json:"Count"`
 }
 
 type LayerHistory struct {
-	Layer              *LayerSummary       `json:"Layer"`
+	// Information specific to the layer such as size and digest.
+	Layer *LayerSummary `json:"Layer"`
+	// Additional information about how the layer was created.
 	HistoryDescription *HistoryDescription `json:"HistoryDescription"`
 }
 
@@ -98,7 +108,7 @@ type LayerSummary struct {
 	Score  *int    `json:"Score"`
 }
 
-// Contains details about the supported OS and architecture of the image
+// Contains details about the OS and architecture of the image
 type OsArch struct {
 	Os   *string `json:"Os"`
 	Arch *string `json:"Arch"`
@@ -111,27 +121,39 @@ type PackageInfo struct {
 	FixedVersion     *string `json:"FixedVersion"`
 }
 
+// Information on current page returned by the API.
+// TotalCount: the total number of objects on all pages.
+// ItemCount: the number of objects in this page.
 type PageInfo struct {
 	TotalCount int `json:"TotalCount"`
 	ItemCount  int `json:"ItemCount"`
 }
 
+// Pagination parameters.
+// limit: refers to the amout of results per page. If you set limit to -1, the pagination behaior is disabled
+// offset: the results page number you want to receive.
+// sortBy: the criteria used to sort the results on the page.
+// Negative values for limit or offset are not allowed.
+// If PageInput is empty, the request should return all objects.
 type PageInput struct {
 	Limit  *int          `json:"limit"`
 	Offset *int          `json:"offset"`
 	SortBy *SortCriteria `json:"sortBy"`
 }
 
+// Paginated list of ImageSummary objects
 type PaginatedImagesResult struct {
 	Page    *PageInfo       `json:"Page"`
 	Results []*ImageSummary `json:"Results"`
 }
 
+// Paginated list of RepoSummary objects
 type PaginatedReposResult struct {
 	Page    *PageInfo      `json:"Page"`
 	Results []*RepoSummary `json:"Results"`
 }
 
+// A referrer is an object which has a reference to a another object
 type Referrer struct {
 	MediaType    *string       `json:"MediaType"`
 	ArtifactType *string       `json:"ArtifactType"`
@@ -161,6 +183,9 @@ type RepoSummary struct {
 	IsStarred     *bool         `json:"IsStarred"`
 }
 
+// All sort criteria usable with pagination, some of these criteria applies only
+// to certain queries. For example sort by severity is available for CVEs but not
+// for repos.
 type SortCriteria string
 
 const (
