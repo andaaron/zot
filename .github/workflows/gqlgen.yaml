@@ -7,7 +7,7 @@ name: "GQL generation and linting"
 on:
   push:
     branches:
-      - main
+      - lint
   pull_request:
     branches: [main]
   release:
