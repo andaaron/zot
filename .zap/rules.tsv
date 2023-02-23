@@ -33,7 +33,7 @@
 10042	WARN	(HTTPS to HTTP Insecure Transition in Form Post)
 10043	WARN	(User Controllable JavaScript Event (XSS))
 10044	WARN	(Big Redirect Detected (Potential Sensitive Information Leak))
-10049	IGNORE	(Content Cacheability)
+10049	IGNORE	(Content Cacheability)  We'd need to set the non-cacheble headers on content which could potentially be cached
 10050	WARN	(Retrieved from Cache)
 10052	WARN	(X-ChromeLogger-Data (XCOLD) Header Information Leak)
 10054	WARN	(Cookie without SameSite Attribute)
@@ -45,8 +45,8 @@
 10063	WARN	(Permissions Policy Header Not Set)
 10096	WARN	(Timestamp Disclosure)
 10097	WARN	(Hash Disclosure)
-10098	IGNORE	(Cross-Domain Misconfiguration)
-10105	IGNORE	(Weak Authentication Method)
+10098	IGNORE	(Cross-Domain Misconfiguration) Cannot know in advance what DN the users will configure for CORS headers
+10105	IGNORE	(Weak Authentication Method)    Cannot package in advance a certificate which would be used for the user's domain, so we cannot use HTTPS
 10108	WARN	(Reverse Tabnabbing)
 10109	WARN	(Modern Web Application)
 10110	WARN	(Dangerous JS Functions)
@@ -56,7 +56,7 @@
 50001	WARN	(Script Passive Scan Rules)
 90001	WARN	(Insecure JSF ViewState)
 90002	WARN	(Java Serialization Object)
-90003	WARN	(Sub Resource Integrity Attribute Missing)
+90003	IGNORE	(Sub Resource Integrity Attribute Missing)  Google Fonts API return dynamic stylesheets depending on OS/Browser and it is not possible to use static identity hashes
 90011	WARN	(Charset Mismatch)
 90022	WARN	(Application Error Disclosure)
 90030	WARN	(WSDL File Detection)
