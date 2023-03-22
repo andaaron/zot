@@ -17,10 +17,11 @@ import (
 	zerr "zotregistry.io/zot/errors"
 	"zotregistry.io/zot/pkg/extensions/monitoring"
 	"zotregistry.io/zot/pkg/log"
+	"zotregistry.io/zot/pkg/meta/bolt"
+	"zotregistry.io/zot/pkg/meta/dynamo"
 	"zotregistry.io/zot/pkg/meta/repodb"
-	bolt "zotregistry.io/zot/pkg/meta/repodb/boltdb-wrapper"
-	dynamo "zotregistry.io/zot/pkg/meta/repodb/dynamodb-wrapper"
-	dynamoParams "zotregistry.io/zot/pkg/meta/repodb/dynamodb-wrapper/params"
+	boltdb_wrapper "zotregistry.io/zot/pkg/meta/repodb/boltdb-wrapper"
+	dynamodb_wrapper "zotregistry.io/zot/pkg/meta/repodb/dynamodb-wrapper"
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
 	"zotregistry.io/zot/pkg/test"
@@ -355,9 +356,13 @@ func TestLoadOCILayoutWithStorage(t *testing.T) {
 		err = os.WriteFile(indexPath, buf, 0o600)
 		So(err, ShouldBeNil)
 
-		repoDB, err := bolt.NewBoltDBWrapper(bolt.DBParameters{
+		params := bolt.DBParameters{
 			RootDir: rootDir,
-		})
+		}
+		boltDriver, err := bolt.GetBoltDriver(params)
+		So(err, ShouldBeNil)
+
+		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver)
 		So(err, ShouldBeNil)
 
 		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
@@ -431,9 +436,13 @@ func TestLoadOCILayoutWithStorage(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// test that we have only 1 image inside the repo
-		repoDB, err := bolt.NewBoltDBWrapper(bolt.DBParameters{
+		params := bolt.DBParameters{
 			RootDir: rootDir,
-		})
+		}
+		boltDriver, err := bolt.GetBoltDriver(params)
+		So(err, ShouldBeNil)
+
+		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver)
 		So(err, ShouldBeNil)
 
 		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
@@ -527,7 +536,7 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 		err = os.WriteFile(indexPath, buf, 0o600)
 		So(err, ShouldBeNil)
 
-		dynamoWrapper, err := dynamo.NewDynamoDBWrapper(dynamoParams.DBDriverParameters{
+		params := dynamo.DBDriverParameters{
 			Endpoint:              os.Getenv("DYNAMODBMOCK_ENDPOINT"),
 			Region:                "us-east-2",
 			RepoMetaTablename:     "RepoMetadataTable",
@@ -535,7 +544,11 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 			IndexDataTablename:    "IndexDataTable",
 			ArtifactDataTablename: "ArtifactDataTable",
 			VersionTablename:      "Version",
-		})
+		}
+		dynamoDriver, err := dynamo.GetDynamoClient(params)
+		So(err, ShouldBeNil)
+
+		dynamoWrapper, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoDriver, params)
 		So(err, ShouldBeNil)
 
 		err = dynamoWrapper.ResetManifestDataTable()
@@ -615,7 +628,7 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// test that we have only 1 image inside the repo
-		repoDB, err := dynamo.NewDynamoDBWrapper(dynamoParams.DBDriverParameters{
+		params := dynamo.DBDriverParameters{
 			Endpoint:              os.Getenv("DYNAMODBMOCK_ENDPOINT"),
 			Region:                "us-east-2",
 			RepoMetaTablename:     "RepoMetadataTable",
@@ -623,7 +636,11 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 			ArtifactDataTablename: "ArtifactDataTable",
 			IndexDataTablename:    "IndexDataTable",
 			VersionTablename:      "Version",
-		})
+		}
+		dynamoClient, err := dynamo.GetDynamoClient(params)
+		So(err, ShouldBeNil)
+
+		repoDB, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoClient, params)
 		So(err, ShouldBeNil)
 
 		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
