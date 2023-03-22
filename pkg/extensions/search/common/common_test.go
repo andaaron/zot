@@ -25,6 +25,7 @@ import (
 	"github.com/opencontainers/image-spec/specs-go"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	. "github.com/smartystreets/goconvey/convey"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/resty.v1"
 
 	zerr "zotregistry.io/zot/errors"
@@ -38,6 +39,7 @@ import (
 	cvemodel "zotregistry.io/zot/pkg/extensions/search/cve/model"
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/meta/repodb"
+	localCtx "zotregistry.io/zot/pkg/requestcontext"
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
 	. "zotregistry.io/zot/pkg/test"
@@ -46,7 +48,6 @@ import (
 
 const (
 	graphqlQueryPrefix = constants.FullSearchPrefix
-	DBFileName         = "repo.db"
 )
 
 var (
@@ -116,6 +117,26 @@ type GlobalSearch struct {
 
 type ExpandedRepoInfo struct {
 	RepoInfo common.RepoInfo `json:"expandedRepoInfo"`
+}
+
+//nolint:tagliatelle // graphQL schema
+type StarredRepos struct {
+	PaginatedReposResult `json:"StarredRepos"`
+}
+
+//nolint:tagliatelle // graphQL schema
+type BookmarkedRepos struct {
+	PaginatedReposResult `json:"BookmarkedRepos"`
+}
+
+type StarredReposResponse struct {
+	StarredRepos `json:"data"`
+	Errors       []ErrorGQL `json:"errors"`
+}
+
+type BookmarkedReposResponse struct {
+	BookmarkedRepos `json:"data"`
+	Errors          []ErrorGQL `json:"errors"`
 }
 
 type PaginatedReposResult struct {
@@ -188,6 +209,17 @@ func getTags() ([]common.TagInfo, []common.TagInfo) {
 	vulnerableTags = append(vulnerableTags, secondTag)
 
 	return tags, vulnerableTags
+}
+
+func getCredString(username, password string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		panic(err)
+	}
+
+	usernameAndHash := fmt.Sprintf("%s:%s", username, string(hash))
+
+	return usernameAndHash
 }
 
 func readFileAndSearchString(filePath string, stringToMatch string, timeout time.Duration) (bool, error) {
@@ -6887,5 +6919,411 @@ func TestImageSummary(t *testing.T) {
 		So(imgSummary.Vulnerabilities.Count, ShouldEqual, 4)
 		// There are 0 vulnerabilities this data used in tests
 		So(imgSummary.Vulnerabilities.MaxSeverity, ShouldEqual, "CRITICAL")
+	})
+}
+
+//nolint:dupl
+func TestUserData(t *testing.T) {
+	Convey("Test user stars and bookmarks", t, func(c C) {
+		port := GetFreePort()
+		baseURL := GetBaseURL(port)
+		defaultVal := true
+
+		accessibleRepo := "accessible-repo"
+		forbiddenRepo := "forbidden-repo"
+		tag := "0.0.1"
+
+		adminUser := "alice"
+		adminPassword := "deepGoesTheRabbitBurrow"
+		simpleUser := "test"
+		simpleUserPassword := "test123"
+
+		twoCredTests := fmt.Sprintf("%s\n%s\n\n", getCredString(adminUser, adminPassword),
+			getCredString(simpleUser, simpleUserPassword))
+
+		htpasswdPath := MakeHtpasswdFileFromString(twoCredTests)
+		defer os.Remove(htpasswdPath)
+
+		conf := config.New()
+		conf.Storage.RootDirectory = t.TempDir()
+		conf.HTTP.Port = port
+		conf.HTTP.Auth = &config.AuthConfig{
+			HTPasswd: config.AuthHTPasswd{
+				Path: htpasswdPath,
+			},
+		}
+		conf.HTTP.AccessControl = &config.AccessControlConfig{
+			Repositories: config.Repositories{
+				"**": config.PolicyGroup{
+					Policies: []config.Policy{
+						{
+							Users:   []string{simpleUser},
+							Actions: []string{"read"},
+						},
+					},
+					DefaultPolicy: []string{},
+				},
+				forbiddenRepo: config.PolicyGroup{
+					Policies: []config.Policy{
+						{
+							Users:   []string{},
+							Actions: []string{},
+						},
+					},
+					DefaultPolicy: []string{},
+				},
+			},
+			AdminPolicy: config.Policy{
+				Users:   []string{adminUser},
+				Actions: []string{"read", "create", "update"},
+			},
+		}
+		conf.Extensions = &extconf.ExtensionConfig{
+			Search: &extconf.SearchConfig{BaseConfig: extconf.BaseConfig{Enable: &defaultVal}},
+		}
+
+		ctlr := api.NewController(conf)
+
+		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager.StartAndWait(port)
+		defer ctlrManager.StopServer()
+
+		config, layers, manifest, err := GetImageComponents(100)
+		So(err, ShouldBeNil)
+
+		err = UploadImageWithBasicAuth(
+			Image{
+				Config:    config,
+				Layers:    layers,
+				Manifest:  manifest,
+				Reference: tag,
+			}, baseURL, accessibleRepo,
+			adminUser, adminPassword,
+		)
+
+		err = UploadImageWithBasicAuth(
+			Image{
+				Config:    config,
+				Layers:    layers,
+				Manifest:  manifest,
+				Reference: tag,
+			}, baseURL, forbiddenRepo,
+			adminUser, adminPassword,
+		)
+
+		userStaredReposQuery := `{
+			StarredRepos {
+				Results {
+					Name StarCount IsStarred
+					NewestImage { Tag }
+				}
+			}
+		}`
+
+		userBookmarkedReposQuery := `{
+			BookmarkedRepos {
+				Results {
+					Name IsBookmarked
+					NewestImage { Tag }
+				}
+			}
+		}`
+
+		// ------- update later, to use the web-based API for toggling the star on and off ---------
+		authzCtxKey := localCtx.GetContextKey()
+		acCtxSimpleUser := localCtx.AccessControlContext{
+			ReadGlobPatterns: map[string]bool{
+				"**":          true,
+				forbiddenRepo: false,
+			},
+			Username: simpleUser,
+		}
+
+		ctxSimpleUser := context.WithValue(context.Background(), authzCtxKey, acCtxSimpleUser)
+
+		acCtxAdminUser := localCtx.AccessControlContext{
+			ReadGlobPatterns: map[string]bool{
+				"**":          true,
+				forbiddenRepo: true,
+			},
+			Username: adminUser,
+		}
+
+		ctxAdminUser := context.WithValue(context.Background(), authzCtxKey, acCtxAdminUser)
+		// -----------------------------------------------------------------------------------------
+
+		Convey("Flip starred repo authorized", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleStarRepo(ctxSimpleUser, accessibleRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Added)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 1)
+			So(responseStruct.Results[0].Name, ShouldEqual, accessibleRepo)
+			// need to update RepoSummary according to user settings
+			//So(responseStruct.Results[0].IsStarred, ShouldEqual, true)
+			So(responseStruct.Results[0].StarCount, ShouldEqual, 1)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err = ctlr.RepoDB.ToggleStarRepo(ctxSimpleUser, accessibleRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Removed)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
+
+		Convey("Flip starred repo unauthorized", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleStarRepo(ctxSimpleUser, forbiddenRepo)
+			So(err, ShouldNotBeNil)
+			So(toggleState, ShouldEqual, repodb.NotChanged)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
+
+		Convey("Flip starred repo with unauthorized repo and admin user", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(adminUser, adminPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleStarRepo(ctxAdminUser, forbiddenRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Added)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 1)
+			So(responseStruct.Results[0].Name, ShouldEqual, forbiddenRepo)
+			// need to update RepoSummary according to user settings
+			//So(responseStruct.Results[0].IsStarred, ShouldEqual, true)
+			So(responseStruct.Results[0].StarCount, ShouldEqual, 1)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err = ctlr.RepoDB.ToggleStarRepo(ctxAdminUser, forbiddenRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Removed)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userStaredReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = StarredReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
+
+		Convey("Flip bookmark repo authorized", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleBookmarkRepo(ctxSimpleUser, accessibleRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Added)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 1)
+			So(responseStruct.Results[0].Name, ShouldEqual, accessibleRepo)
+			// need to update RepoSummary according to user settings
+			//So(responseStruct.Results[0].IsBookmarked, ShouldEqual, true)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err = ctlr.RepoDB.ToggleBookmarkRepo(ctxSimpleUser, accessibleRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Removed)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
+
+		Convey("Flip bookmark repo unauthorized", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleBookmarkRepo(ctxSimpleUser, forbiddenRepo)
+			So(err, ShouldNotBeNil)
+			So(toggleState, ShouldEqual, repodb.NotChanged)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
+
+		Convey("Flip bookmarked unauthorized repo and admin user", func(c C) {
+			clientHTTP := resty.R().SetBasicAuth(adminUser, adminPassword)
+
+			resp, err := clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct := BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err := ctlr.RepoDB.ToggleBookmarkRepo(ctxAdminUser, forbiddenRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Added)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 1)
+			So(responseStruct.Results[0].Name, ShouldEqual, forbiddenRepo)
+			// need to update RepoSummary according to user settings
+			//So(responseStruct.Results[0].IsBookmarked, ShouldEqual, true)
+
+			// ------- update later, to use the web-based API for toggling the star on and off ---------
+			toggleState, err = ctlr.RepoDB.ToggleBookmarkRepo(ctxAdminUser, forbiddenRepo)
+			So(err, ShouldBeNil)
+			So(toggleState, ShouldEqual, repodb.Removed)
+			// -----------------------------------------------------------------------------------------
+
+			resp, err = clientHTTP.Get(baseURL + constants.FullSearchPrefix +
+				"?query=" + url.QueryEscape(userBookmarkedReposQuery))
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+			So(resp.StatusCode(), ShouldEqual, 200)
+
+			responseStruct = BookmarkedReposResponse{}
+			err = json.Unmarshal(resp.Body(), &responseStruct)
+			So(err, ShouldBeNil)
+			So(len(responseStruct.Results), ShouldEqual, 0)
+		})
 	})
 }

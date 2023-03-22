@@ -16,6 +16,7 @@ import (
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	zerr "zotregistry.io/zot/errors"
+	zcommon "zotregistry.io/zot/pkg/common"
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/meta/common"
 	"zotregistry.io/zot/pkg/meta/dynamo"
@@ -32,6 +33,7 @@ type DBWrapper struct {
 	IndexDataTablename    string
 	ManifestDataTablename string
 	ArtifactDataTablename string
+	UserDataTablename     string
 	VersionTablename      string
 	Patches               []func(client *dynamodb.Client, tableNames map[string]string) error
 	Log                   log.Logger
@@ -45,6 +47,7 @@ func NewDynamoDBWrapper(client *dynamodb.Client, params dynamo.DBDriverParameter
 		IndexDataTablename:    params.IndexDataTablename,
 		ArtifactDataTablename: params.ArtifactDataTablename,
 		VersionTablename:      params.VersionTablename,
+		UserDataTablename:     params.UserDataTablename,
 		Patches:               version.GetDynamoDBPatches(),
 		Log:                   log,
 	}
@@ -70,6 +73,11 @@ func NewDynamoDBWrapper(client *dynamodb.Client, params dynamo.DBDriverParameter
 	}
 
 	err = dynamoWrapper.createIndexDataTable()
+	if err != nil {
+		return nil, err
+	}
+
+	err = dynamoWrapper.createUserDataTable()
 	if err != nil {
 		return nil, err
 	}
@@ -1193,6 +1201,104 @@ func (dwr *DBWrapper) FilterTags(ctx context.Context, filter repodb.FilterFunc,
 	return foundRepos, foundManifestMetadataMap, foundindexDataMap, pageInfo, err
 }
 
+func (dwr DBWrapper) FilterRepos(ctx context.Context,
+	filter repodb.FilterRepoFunc,
+	requestedPage repodb.PageInput,
+) (
+	[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, map[string]repodb.IndexData, repodb.PageInfo, error,
+) {
+	var (
+		foundRepos = make([]repodb.RepoMetadata, 0)
+		// pageFinder repodb.PageFinder
+		foundManifestMetadataMap  = make(map[string]repodb.ManifestMetadata)
+		foundIndexDataMap         = make(map[string]repodb.IndexData)
+		repoMetaAttributeIterator dynamo.AttributesIterator
+		pageInfo                  repodb.PageInfo
+	)
+
+	pageFinder, err := repodb.NewBaseRepoPageFinder(requestedPage.Limit, requestedPage.Offset, requestedPage.SortBy)
+	if err != nil {
+		return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+	}
+
+	repoMetaAttribute, err := repoMetaAttributeIterator.First(ctx)
+	if err != nil {
+		return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+	}
+
+	for ; repoMetaAttribute != nil; repoMetaAttribute, err = repoMetaAttributeIterator.Next(ctx) {
+		if err != nil {
+			return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+		}
+
+		var repoMeta repodb.RepoMetadata
+
+		err := attributevalue.Unmarshal(repoMetaAttribute, &repoMeta)
+		if err != nil {
+			return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+		}
+
+		if ok, err := localCtx.RepoIsUserAvailable(ctx, repoMeta.Name); !ok || err != nil {
+			continue
+		}
+		matchedTags := make(map[string]repodb.Descriptor)
+
+		// take all manifestMetas
+		repoMeta.Tags = matchedTags
+
+		pageFinder.Add(repodb.DetailedRepoMeta{
+			RepoMeta: repoMeta,
+		})
+	}
+
+	for idx := range foundRepos {
+		for _, descriptor := range foundRepos[idx].Tags {
+			switch descriptor.MediaType {
+			case ispec.MediaTypeImageManifest:
+				manifestMeta, err := dwr.GetManifestMeta( //nolint:contextcheck
+					foundRepos[idx].Name, godigest.Digest(descriptor.Digest))
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+				}
+
+				foundManifestMetadataMap[descriptor.Digest] = manifestMeta
+			case ispec.MediaTypeImageIndex:
+				indexData, err := dwr.GetIndexData(godigest.Digest(descriptor.Digest)) //nolint:contextcheck
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+				}
+
+				var indexContent ispec.Index
+
+				err = json.Unmarshal(indexData.IndexBlob, &indexContent)
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{},
+						map[string]repodb.IndexData{}, pageInfo,
+						fmt.Errorf("repodb: error while getting index data for digest %s %w", descriptor.Digest, err)
+				}
+
+				for _, manifestDescriptor := range indexContent.Manifests {
+					manifestDigest := manifestDescriptor.Digest.String()
+
+					manifestMeta, err := dwr.GetManifestMeta( //nolint:contextcheck
+						foundRepos[idx].Name, manifestDescriptor.Digest)
+					if err != nil {
+						return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+					}
+
+					foundManifestMetadataMap[manifestDigest] = manifestMeta
+				}
+
+				foundIndexDataMap[descriptor.Digest] = indexData
+			default:
+				dwr.Log.Error().Msgf("Unsupported type: %s", descriptor.MediaType)
+			}
+		}
+	}
+
+	return foundRepos, foundManifestMetadataMap, foundIndexDataMap, pageInfo, nil
+}
+
 func (dwr *DBWrapper) SearchTags(ctx context.Context, searchText string, filter repodb.Filter,
 	requestedPage repodb.PageInput,
 ) ([]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, map[string]repodb.IndexData, repodb.PageInfo, error) {
@@ -1700,4 +1806,206 @@ func (dwr *DBWrapper) ResetManifestDataTable() error {
 	}
 
 	return dwr.createManifestDataTable()
+}
+
+func (dwr DBWrapper) ResetUserDataTable() error {
+	err := dwr.deleteUserDataTable()
+	if err != nil {
+		return err
+	}
+
+	return dwr.createUserDataTable()
+}
+
+func (dwr *DBWrapper) ToggleBookmarkRepo(ctx context.Context, repo string) (
+	repodb.ToggleState, error,
+) {
+	res := repodb.NotChanged
+
+	if ok, err := localCtx.RepoIsUserAvailable(ctx, string(repo)); !ok || err != nil {
+		return res, zerr.ErrUserDataNotAllowed
+	}
+
+	userMeta, err := dwr.GetUserMeta(ctx)
+	if err != nil {
+		return res, err
+	}
+
+	if !zcommon.Contains(userMeta.BookmarkedRepos, repo) {
+		userMeta.BookmarkedRepos = append(userMeta.BookmarkedRepos, repo)
+		res = repodb.Added
+	} else {
+		userMeta.BookmarkedRepos = zcommon.RemoveFrom(userMeta.BookmarkedRepos, repo)
+		res = repodb.Removed
+	}
+
+	if res != repodb.NotChanged {
+		err = dwr.setUserMeta(ctx, userMeta)
+	}
+
+	if err != nil {
+		res = repodb.NotChanged
+
+		return res, err
+	}
+
+	return res, nil
+}
+
+func (dwr *DBWrapper) GetBookmarkedRepos(ctx context.Context) ([]string, error) {
+	userMeta, err := dwr.GetUserMeta(ctx)
+
+	return userMeta.BookmarkedRepos, err
+}
+
+func (dwr *DBWrapper) ToggleStarRepo(ctx context.Context, repo string) (
+	repodb.ToggleState, error,
+) {
+	res := repodb.NotChanged
+
+	if ok, err := localCtx.RepoIsUserAvailable(ctx, string(repo)); !ok || err != nil {
+		return res, zerr.ErrUserDataNotAllowed
+	}
+
+	userMeta, err := dwr.GetUserMeta(ctx)
+	if err != nil {
+		return res, err
+	}
+
+	if !zcommon.Contains(userMeta.StarredRepos, repo) {
+		userMeta.StarredRepos = append(userMeta.StarredRepos, repo)
+		res = repodb.Added
+	} else {
+		userMeta.StarredRepos = zcommon.RemoveFrom(userMeta.StarredRepos, repo)
+		res = repodb.Removed
+	}
+
+	if res != repodb.NotChanged {
+		err = dwr.setUserMeta(ctx, userMeta)
+	}
+
+	if err != nil {
+		res = repodb.NotChanged
+
+		return res, err
+	}
+
+	return res, nil
+}
+
+func (dwr *DBWrapper) GetStarredRepos(ctx context.Context) ([]string, error) {
+	userMeta, err := dwr.GetUserMeta(ctx)
+
+	return userMeta.StarredRepos, err
+}
+
+func (dwr DBWrapper) GetUserMeta(ctx context.Context) (repodb.UserData, error) {
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return repodb.UserData{}, err
+	}
+
+	userid := acCtx.Username
+
+	if userid == "" {
+		// empty user is anonymous, it has no data
+		return repodb.UserData{}, nil
+	}
+
+	resp, err := dwr.Client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(dwr.UserDataTablename),
+		Key: map[string]types.AttributeValue{
+			"UserID": &types.AttributeValueMemberS{Value: userid},
+		},
+	})
+	if err != nil {
+		return repodb.UserData{}, err
+	}
+
+	if resp.Item == nil {
+		return repodb.UserData{}, zerr.ErrUserDataNotFound
+	}
+
+	var userMeta repodb.UserData
+
+	err = attributevalue.Unmarshal(resp.Item["UserData"], &userMeta)
+	if err != nil {
+		return repodb.UserData{}, err
+	}
+
+	return userMeta, nil
+}
+
+func (dwr DBWrapper) createUserDataTable() error {
+	_, err := dwr.Client.CreateTable(context.Background(), &dynamodb.CreateTableInput{
+		TableName: aws.String(dwr.UserDataTablename),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String("UserData"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String("UserData"),
+				KeyType:       types.KeyTypeHash,
+			},
+		},
+		BillingMode: types.BillingModePayPerRequest,
+	})
+
+	if err != nil && !strings.Contains(err.Error(), "Table already exists") {
+		return err
+	}
+
+	return dwr.waitTableToBeCreated(dwr.UserDataTablename)
+}
+
+func (dwr DBWrapper) deleteUserDataTable() error {
+	_, err := dwr.Client.DeleteTable(context.Background(), &dynamodb.DeleteTableInput{
+		TableName: aws.String(dwr.UserDataTablename),
+	})
+
+	if temp := new(types.ResourceNotFoundException); errors.As(err, &temp) {
+		return nil
+	}
+
+	return dwr.waitTableToBeDeleted(dwr.UserDataTablename)
+}
+
+func (dwr DBWrapper) setUserMeta(ctx context.Context, userMeta repodb.UserData) error {
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	userid := acCtx.Username
+
+	if userid == "" {
+		// empty user is anonymous, it has no data
+		return zerr.ErrUserDataNotAllowed
+	}
+
+	repoAttributeValue, err := attributevalue.Marshal(userMeta)
+	if err != nil {
+		return err
+	}
+
+	_, err = dwr.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		ExpressionAttributeNames: map[string]string{
+			"#UM": "UserData",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":UserData": repoAttributeValue,
+		},
+		Key: map[string]types.AttributeValue{
+			"UserID": &types.AttributeValueMemberS{
+				Value: userid,
+			},
+		},
+		TableName:        aws.String(dwr.UserDataTablename),
+		UpdateExpression: aws.String("SET #UM = :UserData"),
+	})
+
+	return err
 }

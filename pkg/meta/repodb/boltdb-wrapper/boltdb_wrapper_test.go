@@ -3,7 +3,6 @@ package bolt_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/opencontainers/go-digest"
@@ -29,7 +28,6 @@ func TestWrapperErrors(t *testing.T) {
 		log := log.NewLogger("debug", "")
 
 		boltdbWrapper, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver, log)
-		defer os.Remove("repo.db")
 		So(boltdbWrapper, ShouldNotBeNil)
 		So(err, ShouldBeNil)
 

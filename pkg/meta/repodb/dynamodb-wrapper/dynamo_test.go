@@ -42,6 +42,7 @@ func TestIterator(t *testing.T) {
 	versionTablename := "Version" + uuid.String()
 	indexDataTablename := "IndexDataTable" + uuid.String()
 	artifactDataTablename := "ArtifactDataTable" + uuid.String()
+	userDataTablename := "UserDataTable" + uuid.String()
 
 	log := log.NewLogger("debug", "")
 
@@ -54,6 +55,7 @@ func TestIterator(t *testing.T) {
 			IndexDataTablename:    indexDataTablename,
 			ArtifactDataTablename: artifactDataTablename,
 			VersionTablename:      versionTablename,
+			UserDataTablename:     userDataTablename,
 		}
 		client, err := dynamo.GetDynamoClient(params)
 		So(err, ShouldBeNil)

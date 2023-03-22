@@ -12,6 +12,7 @@ import (
 	"go.etcd.io/bbolt"
 
 	zerr "zotregistry.io/zot/errors"
+	zcommon "zotregistry.io/zot/pkg/common"
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/meta/bolt"
 	"zotregistry.io/zot/pkg/meta/common"
@@ -54,6 +55,11 @@ func NewBoltDBWrapper(boltDB *bbolt.DB, log log.Logger) (*DBWrapper, error) {
 		}
 
 		_, err = transaction.CreateBucketIfNotExists([]byte(bolt.RepoMetadataBucket))
+		if err != nil {
+			return err
+		}
+
+		_, err = transaction.CreateBucketIfNotExists([]byte(bolt.UserDataBucket))
 		if err != nil {
 			return err
 		}
@@ -1356,6 +1362,107 @@ func (bdw *DBWrapper) FilterTags(ctx context.Context, filter repodb.FilterFunc,
 	return foundRepos, foundManifestMetadataMap, foundindexDataMap, pageInfo, err
 }
 
+func (bdw DBWrapper) FilterRepos(ctx context.Context,
+	filter repodb.FilterRepoFunc,
+	requestedPage repodb.PageInput,
+) (
+	[]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, map[string]repodb.IndexData, repodb.PageInfo, error,
+) {
+	var (
+		foundRepos = make([]repodb.RepoMetadata, 0)
+		pageFinder repodb.PageFinder
+		pageInfo   repodb.PageInfo
+	)
+
+	pageFinder, err := repodb.NewBaseRepoPageFinder(
+		requestedPage.Limit,
+		requestedPage.Offset,
+		requestedPage.SortBy,
+	)
+	if err != nil {
+		return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+	}
+
+	err = bdw.DB.View(func(tx *bbolt.Tx) error {
+		buck := tx.Bucket([]byte(bolt.RepoMetadataBucket))
+
+		cursor := buck.Cursor()
+
+		for repoName, repoMetaBlob := cursor.First(); repoName != nil; repoName, repoMetaBlob = cursor.Next() {
+			if ok, err := localCtx.RepoIsUserAvailable(ctx, string(repoName)); !ok || err != nil {
+				continue
+			}
+
+			repoMeta := repodb.RepoMetadata{}
+
+			err := json.Unmarshal(repoMetaBlob, &repoMeta)
+			if err != nil {
+				return err
+			}
+
+			if filter(repoMeta) {
+				pageFinder.Add(repodb.DetailedRepoMeta{
+					RepoMeta: repoMeta,
+				})
+			}
+		}
+
+		foundRepos, pageInfo = pageFinder.Page()
+
+		return nil
+	})
+
+	foundManifestMetadataMap := make(map[string]repodb.ManifestMetadata)
+	foundIndexDataMap := make(map[string]repodb.IndexData)
+
+	for idx := range foundRepos {
+		for _, descriptor := range foundRepos[idx].Tags {
+			switch descriptor.MediaType {
+			case ispec.MediaTypeImageManifest:
+				manifestMeta, err := bdw.GetManifestMeta(
+					foundRepos[idx].Name, godigest.Digest(descriptor.Digest))
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+				}
+
+				foundManifestMetadataMap[descriptor.Digest] = manifestMeta
+			case ispec.MediaTypeImageIndex:
+				indexData, err := bdw.GetIndexData(godigest.Digest(descriptor.Digest))
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+				}
+
+				var indexContent ispec.Index
+
+				err = json.Unmarshal(indexData.IndexBlob, &indexContent)
+				if err != nil {
+					return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{},
+						map[string]repodb.IndexData{}, pageInfo,
+						fmt.Errorf("repodb: error while getting index data for digest %s %w", descriptor.Digest, err)
+				}
+
+				for _, manifestDescriptor := range indexContent.Manifests {
+					manifestDigest := manifestDescriptor.Digest.String()
+
+					manifestMeta, err := bdw.GetManifestMeta(
+						foundRepos[idx].Name, manifestDescriptor.Digest)
+					if err != nil {
+						return []repodb.RepoMetadata{}, map[string]repodb.ManifestMetadata{}, map[string]repodb.IndexData{}, pageInfo, err
+					}
+
+					foundManifestMetadataMap[manifestDigest] = manifestMeta
+				}
+
+				foundIndexDataMap[descriptor.Digest] = indexData
+			default:
+				bdw.Log.Error().Msgf("Unsupported type: %s", descriptor.MediaType)
+			}
+		}
+	}
+
+	return foundRepos, foundManifestMetadataMap, foundIndexDataMap, pageInfo, err
+}
+
 func (bdw *DBWrapper) SearchTags(ctx context.Context, searchText string, filter repodb.Filter,
 	requestedPage repodb.PageInput,
 ) ([]repodb.RepoMetadata, map[string]repodb.ManifestMetadata, map[string]repodb.IndexData, repodb.PageInfo, error) {
@@ -1544,6 +1651,252 @@ func (bdw *DBWrapper) SearchTags(ctx context.Context, searchText string, filter 
 	})
 
 	return foundRepos, foundManifestMetadataMap, foundindexDataMap, pageInfo, err
+}
+
+func (bdw *DBWrapper) ToggleStarRepo(ctx context.Context, repo string) (repodb.ToggleState, error) {
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return repodb.NotChanged, err
+	}
+
+	userid := acCtx.Username
+	if userid == "" {
+		// empty user is anonymous
+		return repodb.NotChanged, zerr.ErrUserDataNotAllowed
+	}
+
+	if ok, err := localCtx.RepoIsUserAvailable(ctx, string(repo)); !ok || err != nil {
+		return repodb.NotChanged, zerr.ErrUserDataNotAllowed
+	}
+
+	var res repodb.ToggleState
+
+	if err := bdw.DB.Update(func(tx *bbolt.Tx) error { //nolint:varnamelen
+		userdb := tx.Bucket([]byte(bolt.UserDataBucket))
+		userBucket, err := userdb.CreateBucketIfNotExists([]byte(userid))
+		if err != nil {
+			// this is a serious failure
+			return zerr.ErrUnableToCreateUserBucket
+		}
+
+		mdata := userBucket.Get([]byte(bolt.StarredReposKey))
+		unpacked := []string{}
+		if mdata != nil {
+			if err = json.Unmarshal(mdata, &unpacked); err != nil {
+				return zerr.ErrInvalidOldUserStarredRepos
+			}
+		}
+
+		if unpacked == nil {
+			return zerr.ErrUnmarshalledRepoListIsNil
+		}
+
+		if !zcommon.Contains(unpacked, repo) {
+			res = repodb.Added
+			unpacked = append(unpacked, repo)
+		} else {
+			unpacked = zcommon.RemoveFrom(unpacked, repo)
+			res = repodb.Removed
+		}
+
+		var repacked []byte
+		if repacked, err = json.Marshal(unpacked); err != nil {
+			return zerr.ErrCouldNotMarshalStarredRepos
+		}
+
+		err = userBucket.Put([]byte(bolt.StarredReposKey), repacked)
+		if err != nil {
+			return zerr.ErrCouldNotPersistData
+		}
+
+		repoBuck := tx.Bucket([]byte(bolt.RepoMetadataBucket))
+
+		repoMetaBlob := repoBuck.Get([]byte(repo))
+		if repoMetaBlob == nil {
+			return zerr.ErrRepoMetaNotFound
+		}
+
+		var repoMeta repodb.RepoMetadata
+
+		err = json.Unmarshal(repoMetaBlob, &repoMeta)
+		if err != nil {
+			return err
+		}
+
+		switch res {
+		case repodb.Added:
+			repoMeta.Stars++
+		case repodb.Removed:
+			repoMeta.Stars--
+		default:
+		}
+
+		repoMetaBlob, err = json.Marshal(repoMeta)
+		if err != nil {
+			return err
+		}
+
+		err = repoBuck.Put([]byte(repo), repoMetaBlob)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return repodb.NotChanged, err
+	}
+
+	return res, nil
+}
+
+func (bdw *DBWrapper) GetStarredRepos(ctx context.Context) ([]string, error) {
+	starredRepos := make([]string, 0)
+
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return starredRepos, err
+	}
+
+	userid := acCtx.Username
+
+	err = bdw.DB.View(func(tx *bbolt.Tx) error { //nolint:dupl
+		if userid == "" {
+			return nil
+		}
+
+		userdb := tx.Bucket([]byte(bolt.UserDataBucket))
+		userBucket := userdb.Bucket([]byte(userid))
+
+		if userBucket == nil {
+			return nil
+		}
+
+		mdata := userBucket.Get([]byte(bolt.StarredReposKey))
+		if mdata == nil {
+			return nil
+		}
+
+		if err := json.Unmarshal(mdata, &starredRepos); err != nil {
+			bdw.Log.Info().Str("user", userid).Err(err).Msg("unmarshal error")
+
+			return zerr.ErrInvalidOldUserStarredRepos
+		}
+
+		if starredRepos == nil {
+			starredRepos = make([]string, 0)
+		}
+
+		return nil
+	})
+
+	return starredRepos, err
+}
+
+func (bdw *DBWrapper) ToggleBookmarkRepo(ctx context.Context, repo string) (repodb.ToggleState, error) {
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return repodb.NotChanged, err
+	}
+
+	userid := acCtx.Username
+	if userid == "" {
+		// empty user is anonymous
+		return repodb.NotChanged, zerr.ErrUserDataNotAllowed
+	}
+
+	if ok, err := localCtx.RepoIsUserAvailable(ctx, string(repo)); !ok || err != nil {
+		return repodb.NotChanged, zerr.ErrUserDataNotAllowed
+	}
+
+	var res repodb.ToggleState
+
+	if err := bdw.DB.Update(func(tx *bbolt.Tx) error { //nolint:dupl
+		userdb := tx.Bucket([]byte(bolt.UserDataBucket))
+		userBucket, err := userdb.CreateBucketIfNotExists([]byte(userid))
+		if err != nil {
+			// this is a serious failure
+			return zerr.ErrUnableToCreateUserBucket
+		}
+
+		mdata := userBucket.Get([]byte(bolt.BookmarkedReposKey))
+		unpacked := []string{}
+		if mdata != nil {
+			if err = json.Unmarshal(mdata, &unpacked); err != nil {
+				return zerr.ErrInvalidOldUserBookmarkedRepos
+			}
+		}
+
+		if unpacked == nil {
+			return zerr.ErrUnmarshalledRepoListIsNil
+		}
+
+		if !zcommon.Contains(unpacked, repo) {
+			res = repodb.Added
+			unpacked = append(unpacked, repo)
+		} else {
+			unpacked = zcommon.RemoveFrom(unpacked, repo)
+			res = repodb.Removed
+		}
+
+		var repacked []byte
+		if repacked, err = json.Marshal(unpacked); err != nil {
+			return zerr.ErrCouldNotMarshalBookmarkedRepos
+		}
+
+		err = userBucket.Put([]byte(bolt.BookmarkedReposKey), repacked)
+		if err != nil {
+			return zerr.ErrUnableToCreateUserBucket
+		}
+
+		return nil
+	}); err != nil {
+		return repodb.NotChanged, err
+	}
+
+	return res, nil
+}
+
+func (bdw *DBWrapper) GetBookmarkedRepos(ctx context.Context) ([]string, error) {
+	bookmarkedRepos := []string{}
+
+	acCtx, err := localCtx.GetAccessControlContext(ctx)
+	if err != nil {
+		return bookmarkedRepos, err
+	}
+
+	userid := acCtx.Username
+
+	err = bdw.DB.View(func(tx *bbolt.Tx) error { //nolint:dupl
+		if userid == "" {
+			return nil
+		}
+
+		userdb := tx.Bucket([]byte(bolt.UserDataBucket))
+		userBucket := userdb.Bucket([]byte(userid))
+
+		if userBucket == nil {
+			return nil
+		}
+
+		mdata := userBucket.Get([]byte(bolt.BookmarkedReposKey))
+		if mdata == nil {
+			return nil
+		}
+
+		if err := json.Unmarshal(mdata, &bookmarkedRepos); err != nil {
+			bdw.Log.Info().Str("user", userid).Err(err).Msg("unmarshal error")
+
+			return zerr.ErrInvalidOldUserBookmarkedRepos
+		}
+
+		if bookmarkedRepos == nil {
+			bookmarkedRepos = make([]string, 0)
+		}
+
+		return nil
+	})
+
+	return bookmarkedRepos, err
 }
 
 func (bdw *DBWrapper) PatchDB() error {
