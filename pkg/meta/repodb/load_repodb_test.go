@@ -362,10 +362,12 @@ func TestLoadOCILayoutWithStorage(t *testing.T) {
 		boltDriver, err := bolt.GetBoltDriver(params)
 		So(err, ShouldBeNil)
 
-		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver)
+		log := log.NewLogger("debug", "")
+
+		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver, log)
 		So(err, ShouldBeNil)
 
-		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
+		err = repodb.ParseStorage(repoDB, storeController, log)
 		So(err, ShouldBeNil)
 
 		repos, err := repoDB.GetMultipleRepoMeta(
@@ -442,10 +444,12 @@ func TestLoadOCILayoutWithStorage(t *testing.T) {
 		boltDriver, err := bolt.GetBoltDriver(params)
 		So(err, ShouldBeNil)
 
-		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver)
+		log := log.NewLogger("debug", "")
+
+		repoDB, err := boltdb_wrapper.NewBoltDBWrapper(boltDriver, log)
 		So(err, ShouldBeNil)
 
-		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
+		err = repodb.ParseStorage(repoDB, storeController, log)
 		So(err, ShouldBeNil)
 
 		repos, err := repoDB.GetMultipleRepoMeta(
@@ -548,7 +552,9 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 		dynamoDriver, err := dynamo.GetDynamoClient(params)
 		So(err, ShouldBeNil)
 
-		dynamoWrapper, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoDriver, params)
+		log := log.NewLogger("debug", "")
+
+		dynamoWrapper, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoDriver, params, log)
 		So(err, ShouldBeNil)
 
 		err = dynamoWrapper.ResetManifestDataTable()
@@ -557,7 +563,7 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 		err = dynamoWrapper.ResetRepoMetaTable()
 		So(err, ShouldBeNil)
 
-		err = repodb.ParseStorage(dynamoWrapper, storeController, log.NewLogger("debug", ""))
+		err = repodb.ParseStorage(dynamoWrapper, storeController, log)
 		So(err, ShouldBeNil)
 
 		repos, err := dynamoWrapper.GetMultipleRepoMeta(
@@ -640,10 +646,12 @@ func TestLoadOCILayoutDynamoWrapper(t *testing.T) {
 		dynamoClient, err := dynamo.GetDynamoClient(params)
 		So(err, ShouldBeNil)
 
-		repoDB, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoClient, params)
+		log := log.NewLogger("debug", "")
+
+		repoDB, err := dynamodb_wrapper.NewDynamoDBWrapper(dynamoClient, params, log)
 		So(err, ShouldBeNil)
 
-		err = repodb.ParseStorage(repoDB, storeController, log.NewLogger("debug", ""))
+		err = repodb.ParseStorage(repoDB, storeController, log)
 		So(err, ShouldBeNil)
 
 		repos, err := repoDB.GetMultipleRepoMeta(
