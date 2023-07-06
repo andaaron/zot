@@ -42,7 +42,13 @@ jobs:
         # https://github.com/opencontainers/distribution-spec/pull/436
         repository: sudo-bmitch/distribution-spec
         ref: pr-conformance-index-subject
-    - name: Build and run OCI distribution-spec conformance from HEAD
+    - name: Build OCI distribution-spec conformance
+      run: |
+        set -x
+        (cd distribution-spec/ && make conformance-binary)
+        mv distribution-spec/output/conformance.test .
+        rm -rf distribution-spec/
+    - name: Run OCI distribution-spec conformance
       env:
         OCI_ROOT_URL: ${{ env.SERVER_URL }}
         OCI_NAMESPACE: oci-conformance/distribution-test
@@ -53,16 +59,12 @@ jobs:
         OCI_HIDE_SKIPPED_WORKFLOWS: 1
       run: |
         set -x
-        (cd distribution-spec/ && make conformance-binary)
-        mv distribution-spec/output/conformance.test .
-        rm -rf distribution-spec/
         ./conformance.test
     - run: mkdir -p .out/ && mv {report.html,junit.xml} .out/
       if: always()
-      #run: docker run --rm -v $(pwd)/results:/results -w /results -e OCI_ROOT_URL=${{ env.OCI_ROOT_URL }} -e OCI_NAMESPACE="anuvu/zot" -e OCI_TEST_PULL=1 -e OCI_TEST_PUSH=1 -e OCI_TEST_CONTENT_DISCOVERY=1 -e OCI_TEST_CONTENT_MANAGEMENT=1 -e OCI_HIDE_SKIPPED_WORKFLOWS=0 -e OCI_DEBUG="true" ghcr.io/opencontainers/distribution-spec/conformance:db4cc68
     - name: Upload test results zip as build artifact
       uses: actions/upload-artifact@v3
       with:
         name: oci-test-results-${{ github.sha }}
         path: .out/
-      if: github.event == 'push'
+      if: github.event_name == 'push'
