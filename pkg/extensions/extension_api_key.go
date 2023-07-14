@@ -1,5 +1,5 @@
-//go:build apikey
-// +build apikey
+//go:build userprefs
+// +build userprefs
 
 package extensions
 
@@ -13,31 +13,18 @@ import (
 	"time"
 
 	guuid "github.com/gofrs/uuid"
-	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	jsoniter "github.com/json-iterator/go"
 	godigest "github.com/opencontainers/go-digest"
 
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
-	zcommon "zotregistry.io/zot/pkg/common"
 	"zotregistry.io/zot/pkg/log"
 	mTypes "zotregistry.io/zot/pkg/meta/types"
 )
 
-func SetupAPIKeyRoutes(config *config.Config, router *mux.Router, metaDB mTypes.MetaDB,
-	cookieStore sessions.Store, log log.Logger,
-) {
-	if config.Extensions.APIKey != nil && *config.Extensions.APIKey.Enable {
-		log.Info().Msg("setting up api key routes")
-
-		allowedMethods := zcommon.AllowedMethods(http.MethodPost, http.MethodDelete)
-
-		apiKeyRouter := router.PathPrefix(constants.ExtAPIKey).Subrouter()
-		apiKeyRouter.Use(zcommon.ACHeadersHandler(config, allowedMethods...))
-		apiKeyRouter.Use(zcommon.AddExtensionSecurityHeaders())
-		apiKeyRouter.Methods(allowedMethods...).Handler(HandleAPIKeyRequest(metaDB, cookieStore, log))
-	}
+func AreAPIKeysEnabled(config *config.Config) bool {
+	return config.Extensions.APIKey != nil && *config.Extensions.APIKey.Enable
 }
 
 type APIKeyPayload struct { //nolint:revive
@@ -70,7 +57,7 @@ func HandleAPIKeyRequest(metaDB mTypes.MetaDB, cookieStore sessions.Store,
 // @Success 201 {string} string "created"
 // @Failure 401 {string} string "unauthorized"
 // @Failure 500 {string} string "internal server error"
-// @Router /v2/_zot/ext/apikey  [post].
+// @Router /v2/_zot/userprefs/apikey  [post].
 func CreateAPIKey(resp http.ResponseWriter, req *http.Request, metaDB mTypes.MetaDB,
 	cookieStore sessions.Store, log log.Logger,
 ) {
@@ -165,7 +152,7 @@ func CreateAPIKey(resp http.ResponseWriter, req *http.Request, metaDB mTypes.Met
 // @Failure 500 {string} string "internal server error"
 // @Failure 401 {string} string "unauthorized"
 // @Failure 400 {string} string "bad request"
-// @Router /v2/_zot/ext/apikey?id=UUID [delete].
+// @Router /v2/_zot/userprefs/apikey?id=UUID [delete].
 func RevokeAPIKey(resp http.ResponseWriter, req *http.Request, metaDB mTypes.MetaDB,
 	cookieStore sessions.Store, log log.Logger,
 ) {

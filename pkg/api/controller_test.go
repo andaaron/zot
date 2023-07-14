@@ -1,5 +1,5 @@
-//go:build sync && scrub && metrics && search && lint && apikey && mgmt
-// +build sync,scrub,metrics,search,lint,apikey,mgmt
+//go:build sync && scrub && metrics && search && lint && userprefs && mgmt
+// +build sync,scrub,metrics,search,lint,userprefs,mgmt
 
 package api_test
 
@@ -2798,7 +2798,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 			resp, err = client.R().
 				SetBasicAuth(htpasswdUsername, passphrase).
-				Get(baseURL + constants.FullMgmtPrefix)
+				Get(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
@@ -2815,7 +2815,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 			resp, err = client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
-				Get(baseURL + constants.FullMgmtPrefix)
+				Get(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
@@ -2864,7 +2864,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 			resp, err = client.R().
 				SetBasicAuth(username, passphrase).
-				Get(baseURL + constants.FullMgmtPrefix)
+				Get(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
@@ -2881,7 +2881,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 			resp, err = client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
-				Get(baseURL + constants.FullMgmtPrefix)
+				Get(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
@@ -2908,7 +2908,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 			// mgmt should work both unauthenticated and authenticated
 			resp, err := client.R().
-				Get(baseURL + constants.FullMgmtPrefix)
+				Get(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
@@ -8789,7 +8789,57 @@ func TestDistSpecExtensions(t *testing.T) {
 		So(extensionList.Extensions[0].URL, ShouldContainSubstring, "_zot.md")
 		So(extensionList.Extensions[0].Description, ShouldNotBeEmpty)
 		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullSearchPrefix)
-		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullUserPreferencesPrefix)
+		// Verify the user preferences per repo are enabled when search is enabled
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullUserPrefsRepo)
+		// Verify the API key endpoint is not enabled when search is enabled
+		So(extensionList.Extensions[0].Endpoints, ShouldNotContain, constants.FullUserPrefsAPIKey)
+	})
+
+	Convey("start zot server with API key extension", t, func(c C) {
+		conf := config.New()
+		port := test.GetFreePort()
+		baseURL := test.GetBaseURL(port)
+
+		conf.HTTP.Port = port
+
+		defaultVal := true
+
+		apiKeyConfig := &extconf.APIKeyConfig{
+			BaseConfig: extconf.BaseConfig{Enable: &defaultVal},
+		}
+
+		conf.Extensions = &extconf.ExtensionConfig{
+			APIKey: apiKeyConfig,
+		}
+
+		logFile, err := os.CreateTemp("", "zot-log*.txt")
+		So(err, ShouldBeNil)
+		conf.Log.Output = logFile.Name()
+		defer os.Remove(logFile.Name()) // clean up
+
+		ctlr := makeController(conf, t.TempDir(), "")
+
+		cm := test.NewControllerManager(ctlr)
+		cm.StartAndWait(port)
+		defer cm.StopServer()
+
+		var extensionList distext.ExtensionList
+
+		resp, err := resty.R().Get(baseURL + constants.RoutePrefix + constants.ExtOciDiscoverPrefix)
+		So(err, ShouldBeNil)
+		So(resp, ShouldNotBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+		err = json.Unmarshal(resp.Body(), &extensionList)
+		So(err, ShouldBeNil)
+		So(len(extensionList.Extensions), ShouldEqual, 1)
+		So(len(extensionList.Extensions[0].Endpoints), ShouldEqual, 1)
+		So(extensionList.Extensions[0].Name, ShouldEqual, "_zot")
+		So(extensionList.Extensions[0].URL, ShouldContainSubstring, "_zot.md")
+		So(extensionList.Extensions[0].Description, ShouldNotBeEmpty)
+		// Verify the user preferences per repo are not enabled as search is disabled
+		So(extensionList.Extensions[0].Endpoints, ShouldNotContain, constants.FullUserPrefsRepo)
+		// Verify the API key endpoint is enabled
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullUserPrefsAPIKey)
 	})
 
 	Convey("start zot server with search and mgmt extensions", t, func(c C) {
@@ -8834,13 +8884,18 @@ func TestDistSpecExtensions(t *testing.T) {
 		err = json.Unmarshal(resp.Body(), &extensionList)
 		So(err, ShouldBeNil)
 		So(len(extensionList.Extensions), ShouldEqual, 1)
-		So(len(extensionList.Extensions[0].Endpoints), ShouldEqual, 3)
+		So(len(extensionList.Extensions[0].Endpoints), ShouldEqual, 5)
 		So(extensionList.Extensions[0].Name, ShouldEqual, "_zot")
 		So(extensionList.Extensions[0].URL, ShouldContainSubstring, "_zot.md")
 		So(extensionList.Extensions[0].Description, ShouldNotBeEmpty)
 		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullSearchPrefix)
-		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullUserPreferencesPrefix)
-		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullMgmtPrefix)
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullMgmtCosign)
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullMgmtNotation)
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullMgmtAuth)
+		// Verify the user preferences per repo are enabled when search is enabled
+		So(extensionList.Extensions[0].Endpoints, ShouldContain, constants.FullUserPrefsRepo)
+		// Verify the API key endpoint is not enabled when search is enabled
+		So(extensionList.Extensions[0].Endpoints, ShouldNotContain, constants.FullUserPrefsAPIKey)
 	})
 
 	Convey("start minimal zot server", t, func(c C) {

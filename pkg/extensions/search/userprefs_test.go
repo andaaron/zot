@@ -136,7 +136,7 @@ func TestUserData(t *testing.T) {
 			}
 		}`
 
-		userprefsBaseURL := baseURL + constants.FullUserPreferencesPrefix
+		userprefsBaseURL := baseURL + constants.FullUserPrefsRepo
 
 		Convey("Flip starred repo authorized", func(c C) {
 			clientHTTP := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
@@ -565,7 +565,7 @@ func TestChangingRepoState(t *testing.T) {
 	simpleUserClient := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
 	anonynousClient := resty.R()
 
-	userprefsBaseURL := baseURL + constants.FullUserPreferencesPrefix
+	userprefsBaseURL := baseURL + constants.FullUserPrefsRepo
 
 	Convey("PutStars", t, func() {
 		resp, err := simpleUserClient.Put(userprefsBaseURL + PutRepoStarURL(accesibleRepo))
@@ -659,7 +659,7 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		preferencesBaseURL := baseURL + constants.FullUserPreferencesPrefix
+		preferencesBaseURL := baseURL + constants.FullUserPrefsRepo
 		simpleUserClient := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
 
 		// ------ Add simple repo
@@ -852,7 +852,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		preferencesBaseURL := baseURL + constants.FullUserPreferencesPrefix
+		preferencesBaseURL := baseURL + constants.FullUserPrefsRepo
 		simpleUserClient := resty.R().SetBasicAuth(simpleUser, simpleUserPassword)
 
 		// ------ Add sbrepo and star/bookmark it

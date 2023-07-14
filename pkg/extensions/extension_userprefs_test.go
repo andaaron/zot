@@ -51,7 +51,7 @@ func TestAllowedMethodsHeaderUserPrefs(t *testing.T) {
 		ctrlManager.StartAndWait(port)
 		defer ctrlManager.StopServer()
 
-		resp, _ := resty.R().Options(baseURL + constants.FullUserPreferencesPrefix)
+		resp, _ := resty.R().Options(baseURL + constants.FullUserPrefsRepo)
 		So(resp, ShouldNotBeNil)
 		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "PUT,OPTIONS")
 		So(resp.StatusCode(), ShouldEqual, http.StatusNoContent)

@@ -121,7 +121,7 @@ func (amw *AuthnMiddleware) basicAuthn(ctlr *Controller, response http.ResponseW
 	cookieStore := ctlr.CookieStore
 
 	// we want to bypass auth for mgmt route
-	isMgmtRequested := request.RequestURI == constants.FullMgmtPrefix
+	isMgmtRequested := request.RequestURI == constants.FullMgmtAuth
 
 	if request.Header.Get("Authorization") == "" {
 		if ctlr.Config.HTTP.AccessControl.AnonymousPolicyExists() || isMgmtRequested {
@@ -439,7 +439,7 @@ func bearerAuthHandler(ctlr *Controller) mux.MiddlewareFunc {
 			name := vars["name"]
 
 			// we want to bypass auth for mgmt route
-			isMgmtRequested := request.RequestURI == constants.FullMgmtPrefix
+			isMgmtRequested := request.RequestURI == constants.FullMgmtAuth
 
 			header := request.Header.Get("Authorization")
 

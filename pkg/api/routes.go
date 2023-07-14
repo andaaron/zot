@@ -165,18 +165,14 @@ func (rh *RouteHandler) SetupRoutes() {
 			prefixedRouter.HandleFunc("/metrics", rh.GetMetrics).Methods("GET")
 		} else {
 			// extended build
-			prefixedExtensionsRouter := prefixedRouter.PathPrefix(constants.ExtPrefix).Subrouter()
-			prefixedExtensionsRouter.Use(CORSHeadersMiddleware(rh.c.Config.HTTP.AllowOrigin))
-
-			ext.SetupMgmtRoutes(rh.c.Config, prefixedExtensionsRouter, rh.c.Log)
-			ext.SetupSearchRoutes(rh.c.Config, prefixedExtensionsRouter, rh.c.StoreController, rh.c.MetaDB, rh.c.CveInfo,
+			ext.SetupSearchRoutes(rh.c.Config, prefixedRouter, rh.c.StoreController, rh.c.MetaDB, rh.c.CveInfo,
 				rh.c.Log)
-			ext.SetupUserPreferencesRoutes(rh.c.Config, prefixedExtensionsRouter, rh.c.StoreController, rh.c.MetaDB,
-				rh.c.CveInfo, rh.c.Log)
-			ext.SetupAPIKeyRoutes(rh.c.Config, prefixedExtensionsRouter, rh.c.MetaDB, rh.c.CookieStore, rh.c.Log)
-			ext.SetupMetricsRoutes(rh.c.Config, rh.c.Router, rh.c.StoreController, authHandler, rh.c.Log)
-
+			ext.SetupMgmtRoutes(rh.c.Config, prefixedRouter, rh.c.Log)
+			ext.SetupUserPreferencesRoutes(rh.c.Config, prefixedRouter, rh.c.StoreController, rh.c.MetaDB,
+				rh.c.CookieStore, rh.c.Log)
 			gqlPlayground.SetupGQLPlaygroundRoutes(rh.c.Config, prefixedRouter, rh.c.StoreController, rh.c.Log)
+
+			ext.SetupMetricsRoutes(rh.c.Config, rh.c.Router, rh.c.StoreController, authHandler, rh.c.Log)
 
 			// last should always be UI because it will setup a http.FileServer and paths will be resolved by this FileServer.
 			ext.SetupUIRoutes(rh.c.Config, rh.c.Router, rh.c.StoreController, rh.c.Log)
@@ -184,31 +180,13 @@ func (rh *RouteHandler) SetupRoutes() {
 	}
 }
 
-func CORSHeadersMiddleware(allowOrigin string) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			addCORSHeaders(allowOrigin, response)
-
-			next.ServeHTTP(response, request)
-		})
-	}
-}
-
 func getCORSHeadersHandler(allowOrigin string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			addCORSHeaders(allowOrigin, response)
+			zcommon.AddCORSHeaders(allowOrigin, response)
 
 			next.ServeHTTP(response, request)
 		})
-	}
-}
-
-func addCORSHeaders(allowOrigin string, response http.ResponseWriter) {
-	if allowOrigin == "" {
-		response.Header().Set("Access-Control-Allow-Origin", "*")
-	} else {
-		response.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 	}
 }
 

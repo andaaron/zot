@@ -13,18 +13,26 @@ func GetExtensions(config *config.Config) distext.ExtensionList {
 	endpoints := []string{}
 	extensions := []distext.Extension{}
 
-	if config.Extensions != nil && config.Extensions.Search != nil {
-		if IsBuiltWithSearchExtension() {
-			endpoints = append(endpoints, constants.FullSearchPrefix)
+	if config.Extensions != nil {
+		if config.Extensions.Search != nil {
+			if IsBuiltWithSearchExtension() {
+				endpoints = append(endpoints, constants.FullSearchPrefix)
+			}
+
+			if IsBuiltWithUserPrefsExtension() {
+				endpoints = append(endpoints, constants.FullUserPrefsRepo)
+			}
 		}
 
-		if IsBuiltWithUserPrefsExtension() {
-			endpoints = append(endpoints, constants.FullUserPreferencesPrefix)
+		if config.Extensions.APIKey != nil && IsBuiltWithUserPrefsExtension() {
+			endpoints = append(endpoints, constants.FullUserPrefsAPIKey)
 		}
-	}
 
-	if IsBuiltWithMGMTExtension() && config.Extensions != nil && config.Extensions.Mgmt != nil {
-		endpoints = append(endpoints, constants.FullMgmtPrefix)
+		if config.Extensions.Mgmt != nil && IsBuiltWithMGMTExtension() {
+			endpoints = append(endpoints, constants.FullMgmtAuth)
+			endpoints = append(endpoints, constants.FullMgmtNotation)
+			endpoints = append(endpoints, constants.FullMgmtCosign)
+		}
 	}
 
 	if len(endpoints) > 0 {

@@ -1,5 +1,5 @@
-//go:build sync && scrub && metrics && search && apikey
-// +build sync,scrub,metrics,search,apikey
+//go:build sync && scrub && metrics && search && userprefs
+// +build sync,scrub,metrics,search,userprefs
 
 package cli_test
 

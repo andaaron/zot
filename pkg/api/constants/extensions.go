@@ -4,21 +4,38 @@ package constants
 const (
 	ExtCatalogPrefix     = "/_catalog"
 	ExtOciDiscoverPrefix = "/_oci/ext/discover"
-	// zot specific extensions.
-	ExtPrefix = "/_zot/ext"
 
+	// zot specific extensions.
+	BasePrefix = "/_zot"
+	ExtPrefix  = BasePrefix + "/ext"
+
+	// search extension.
 	ExtSearch        = "/search"
 	ExtSearchPrefix  = ExtPrefix + ExtSearch
 	FullSearchPrefix = RoutePrefix + ExtSearchPrefix
 
-	ExtMgmt        = "/mgmt"
-	ExtMgmtPrefix  = ExtPrefix + ExtMgmt
-	FullMgmtPrefix = RoutePrefix + ExtMgmtPrefix
+	// mgmt extension.
+	Mgmt             = "/mgmt"
+	MgmtPrefix       = BasePrefix + Mgmt
+	FullMgmtPrefix   = RoutePrefix + MgmtPrefix
+	AuthInfo         = "/auth"
+	MgmtAuth         = MgmtPrefix + AuthInfo
+	FullMgmtAuth     = RoutePrefix + MgmtAuth
+	Notation         = "/notation"
+	MgmtNotation     = MgmtPrefix + Notation
+	FullMgmtNotation = RoutePrefix + MgmtNotation
+	Cosign           = "/cosign"
+	MgmtCosign       = MgmtPrefix + Cosign
+	FullMgmtCosign   = RoutePrefix + MgmtCosign
 
-	ExtUserPreferences        = "/userprefs"
-	ExtUserPreferencesPrefix  = ExtPrefix + ExtUserPreferences
-	FullUserPreferencesPrefix = RoutePrefix + ExtUserPreferencesPrefix
-	ExtAPIKey                 = "/apikey"
-	ExtAPIKeyPrefix           = ExtPrefix + ExtAPIKey //nolint: gosec
-	FullAPIKeyPrefix          = RoutePrefix + ExtAPIKeyPrefix
+	// user preferences extension.
+	UserPrefs           = "/userprefs"
+	UserPrefsPrefix     = BasePrefix + UserPrefs
+	FullUserPrefsPrefix = RoutePrefix + UserPrefsPrefix
+	RepoPrefs           = "/repo"
+	UserPrefsRepo       = UserPrefsPrefix + RepoPrefs
+	FullUserPrefsRepo   = RoutePrefix + UserPrefsRepo
+	APIKeyPrefs         = "/apikey"
+	UserPrefsAPIKey     = UserPrefsPrefix + APIKeyPrefs
+	FullUserPrefsAPIKey = RoutePrefix + UserPrefsAPIKey
 )

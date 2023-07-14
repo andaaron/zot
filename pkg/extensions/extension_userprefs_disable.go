@@ -5,6 +5,7 @@ package extensions
 
 import (
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/log"
@@ -17,7 +18,7 @@ func IsBuiltWithUserPrefsExtension() bool {
 }
 
 func SetupUserPreferencesRoutes(config *config.Config, router *mux.Router, storeController storage.StoreController,
-	metaDB mTypes.MetaDB, cveInfo CveInfo, log log.Logger,
+	metaDB mTypes.MetaDB, cookieStore sessions.Store, log log.Logger,
 ) {
 	log.Warn().Msg("userprefs extension is disabled because given zot binary doesn't" +
 		"include this feature please build a binary that does so")

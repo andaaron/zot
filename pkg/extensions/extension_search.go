@@ -166,8 +166,9 @@ func SetupSearchRoutes(config *config.Config, router *mux.Router, storeControlle
 
 		allowedMethods := zcommon.AllowedMethods(http.MethodGet, http.MethodPost)
 
-		extRouter := router.PathPrefix(constants.ExtSearch).Subrouter()
-		extRouter.Use(zcommon.ACHeadersHandler(config, allowedMethods...))
+		extRouter := router.PathPrefix(constants.ExtSearchPrefix).Subrouter()
+		extRouter.Use(zcommon.CORSHeadersMiddleware(config.HTTP.AllowOrigin))
+		extRouter.Use(zcommon.ACHeadersMiddleware(config, allowedMethods...))
 		extRouter.Use(zcommon.AddExtensionSecurityHeaders())
 		extRouter.Methods(allowedMethods...).
 			Handler(gqlHandler.NewDefaultServer(gql_generated.NewExecutableSchema(resConfig)))

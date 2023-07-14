@@ -93,7 +93,7 @@ function teardown_file() {
     [ "$status" -eq 0 ]
     [ $(echo "${lines[-1]}" | jq '.data.StarredRepos.Results') = '[]' ]
 
-    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/ext/userprefs?repo=golang&action=toggleStar"
+    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/userprefs/repo?repo=golang&action=toggleStar"
     [ "$status" -eq 0 ]
 
     run curl --user "test:test" -X POST -H "Content-Type: application/json" --data "${USER_STAR_REPOS_QUERY}" http://localhost:8080/v2/_zot/ext/search
@@ -101,7 +101,7 @@ function teardown_file() {
     echo  $(echo "${lines[-1]}" | jq '.data.StarredRepos.Results[0].Name')
     [ $(echo "${lines[-1]}" | jq -r '.data.StarredRepos.Results[0].Name') = 'golang' ]
 
-    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/ext/userprefs?repo=golang&action=toggleStar"
+    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/userprefs/repo?repo=golang&action=toggleStar"
     [ "$status" -eq 0 ]
 
         run curl --user "test:test" -X POST -H "Content-Type: application/json" --data "${USER_STAR_REPOS_QUERY}" http://localhost:8080/v2/_zot/ext/search
@@ -122,14 +122,14 @@ function teardown_file() {
     [ "$status" -eq 0 ]
     [ $(echo "${lines[-1]}" | jq '.data.BookmarkedRepos.Results') = '[]' ]
 
-    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/ext/userprefs?repo=golang&action=toggleBookmark"
+    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/userprefs/repo?repo=golang&action=toggleBookmark"
     [ "$status" -eq 0 ]
 
     run curl --user "test:test" -X POST -H "Content-Type: application/json" --data "${USER_BOOKMARK_REPOS_QUERY}" http://localhost:8080/v2/_zot/ext/search
     [ "$status" -eq 0 ]
     [ $(echo "${lines[-1]}" | jq -r '.data.BookmarkedRepos.Results[0].Name') = 'golang' ]
 
-    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/ext/userprefs?repo=golang&action=toggleBookmark"
+    run curl --user "test:test" -X PUT "http://127.0.0.1:8080/v2/_zot/userprefs/repo?repo=golang&action=toggleBookmark"
     [ "$status" -eq 0 ]
 
         run curl --user "test:test" -X POST -H "Content-Type: application/json" --data "${USER_BOOKMARK_REPOS_QUERY}" http://localhost:8080/v2/_zot/ext/search

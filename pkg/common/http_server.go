@@ -15,6 +15,7 @@ import (
 	"zotregistry.io/zot/pkg/api/constants"
 	apiErr "zotregistry.io/zot/pkg/api/errors"
 	"zotregistry.io/zot/pkg/log"
+	localCtx "zotregistry.io/zot/pkg/requestcontext"
 )
 
 func AllowedMethods(methods ...string) []string {
@@ -31,7 +32,7 @@ func AddExtensionSecurityHeaders() mux.MiddlewareFunc { //nolint:varnamelen
 	}
 }
 
-func ACHeadersHandler(config *config.Config, allowedMethods ...string) mux.MiddlewareFunc {
+func ACHeadersMiddleware(config *config.Config, allowedMethods ...string) mux.MiddlewareFunc {
 	allowedMethodsValue := strings.Join(allowedMethods, ",")
 
 	return func(next http.Handler) http.Handler {
@@ -48,6 +49,55 @@ func ACHeadersHandler(config *config.Config, allowedMethods ...string) mux.Middl
 			}
 
 			next.ServeHTTP(resp, req)
+		})
+	}
+}
+
+func CORSHeadersMiddleware(allowOrigin string) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			AddCORSHeaders(allowOrigin, response)
+
+			next.ServeHTTP(response, request)
+		})
+	}
+}
+
+func AddCORSHeaders(allowOrigin string, response http.ResponseWriter) {
+	if allowOrigin == "" {
+		response.Header().Set("Access-Control-Allow-Origin", "*")
+	} else {
+		response.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+	}
+}
+
+// AuthzOnlyAdminsMiddleware permits only admin user access if auth is enabled.
+func AuthzOnlyAdminsMiddleware(conf *config.Config) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if conf.HTTP.Auth == nil || (conf.HTTP.Auth.HTPasswd.Path == "" &&
+				conf.HTTP.Auth.LDAP == nil && conf.HTTP.Auth.OpenID == nil) {
+				next.ServeHTTP(response, request)
+
+				return
+			}
+
+			// get acCtx built in previous authn/authz middlewares
+			acCtx, err := localCtx.GetAccessControlContext(request.Context())
+			if err != nil { // should not happen as this has been previously checked for errors
+				AuthzFail(response, request, conf.HTTP.Realm, conf.HTTP.Auth.FailDelay)
+
+				return
+			}
+
+			// reject non-admin access if authentication is enabled
+			if acCtx != nil && !acCtx.IsAdmin {
+				AuthzFail(response, request, conf.HTTP.Realm, conf.HTTP.Auth.FailDelay)
+
+				return
+			}
+
+			next.ServeHTTP(response, request)
 		})
 	}
 }

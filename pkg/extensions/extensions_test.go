@@ -1,24 +1,32 @@
-//go:build sync || metrics || mgmt || apikey
-// +build sync metrics mgmt apikey
+//go:build sync || metrics || mgmt || userprefs || search
+// +build sync metrics mgmt userprefs search
 
 package extensions_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path"
 	"testing"
 	"time"
 
+	godigest "github.com/opencontainers/go-digest"
+	"github.com/sigstore/cosign/v2/cmd/cosign/cli/generate"
+	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
+	"github.com/sigstore/cosign/v2/cmd/cosign/cli/sign"
 	. "github.com/smartystreets/goconvey/convey"
 	"gopkg.in/resty.v1"
 
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
+	zcommon "zotregistry.io/zot/pkg/common"
 	"zotregistry.io/zot/pkg/extensions"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	syncconf "zotregistry.io/zot/pkg/extensions/config/sync"
@@ -142,7 +150,7 @@ func TestMgmtExtension(t *testing.T) {
 
 	mockOIDCConfig := mockOIDCServer.Config()
 
-	Convey("Verify mgmt route enabled with htpasswd", t, func() {
+	Convey("Verify mgmt auth info route enabled with htpasswd", t, func() {
 		htpasswdPath := test.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 
@@ -174,13 +182,13 @@ func TestMgmtExtension(t *testing.T) {
 
 		Convey("unsupported http method call", func() {
 			// without credentials
-			resp, err := resty.R().Patch(baseURL + constants.FullMgmtPrefix)
+			resp, err := resty.R().Patch(baseURL + constants.FullMgmtAuth)
 			So(err, ShouldBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusMethodNotAllowed)
 		})
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -193,7 +201,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.LDAP, ShouldBeNil)
 
 		// with credentials
-		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -206,12 +214,12 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.LDAP, ShouldBeNil)
 
 		// with wrong credentials
-		resp, err = resty.R().SetBasicAuth("test", "wrong").Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().SetBasicAuth("test", "wrong").Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 	})
 
-	Convey("Verify mgmt route enabled with ldap", t, func() {
+	Convey("Verify mgmt auth info route enabled with ldap", t, func() {
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
 			BindDN:  "binddn",
 			BaseDN:  "basedn",
@@ -245,7 +253,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -258,7 +266,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer, ShouldBeNil)
 	})
 
-	Convey("Verify mgmt route enabled with htpasswd + ldap", t, func() {
+	Convey("Verify mgmt auth info route enabled with htpasswd + ldap", t, func() {
 		htpasswdPath := test.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
@@ -294,7 +302,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -307,7 +315,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer, ShouldBeNil)
 
 		// with credentials
-		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -320,7 +328,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer, ShouldBeNil)
 	})
 
-	Convey("Verify mgmt route enabled with htpasswd + ldap + bearer", t, func() {
+	Convey("Verify mgmt auth info route enabled with htpasswd + ldap + bearer", t, func() {
 		htpasswdPath := test.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
@@ -357,7 +365,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -372,7 +380,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer.Service, ShouldEqual, "service")
 
 		// with credentials
-		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().SetBasicAuth("test", "test").Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -387,7 +395,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer.Service, ShouldEqual, "service")
 	})
 
-	Convey("Verify mgmt route enabled with ldap + bearer", t, func() {
+	Convey("Verify mgmt auth info route enabled with ldap + bearer", t, func() {
 		conf.HTTP.Auth.HTPasswd.Path = ""
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
 			BindDN:  "binddn",
@@ -427,7 +435,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -442,7 +450,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer.Service, ShouldEqual, "service")
 	})
 
-	Convey("Verify mgmt route enabled with bearer", t, func() {
+	Convey("Verify mgmt auth info route enabled with bearer", t, func() {
 		conf.HTTP.Auth.HTPasswd.Path = ""
 		conf.HTTP.Auth.LDAP = nil
 		conf.HTTP.Auth.Bearer = &config.BearerConfig{
@@ -473,7 +481,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -487,7 +495,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.Bearer.Service, ShouldEqual, "service")
 	})
 
-	Convey("Verify mgmt route enabled with openID", t, func() {
+	Convey("Verify mgmt auth info route enabled with openID", t, func() {
 		conf.HTTP.Auth.HTPasswd.Path = ""
 		conf.HTTP.Auth.LDAP = nil
 		conf.HTTP.Auth.Bearer = nil
@@ -526,7 +534,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -541,7 +549,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.OpenID.Providers, ShouldNotBeEmpty)
 	})
 
-	Convey("Verify mgmt route enabled with empty openID provider list", t, func() {
+	Convey("Verify mgmt auth info route enabled with empty openID provider list", t, func() {
 		htpasswdPath := test.MakeHtpasswdFile()
 
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
@@ -577,7 +585,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 
 		// without credentials
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -591,7 +599,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.OpenID, ShouldBeNil)
 	})
 
-	Convey("Verify mgmt route enabled without any auth", t, func() {
+	Convey("Verify mgmt auth info route enabled without any auth", t, func() {
 		globalDir := t.TempDir()
 		conf := config.New()
 		port := test.GetFreePort()
@@ -622,7 +630,7 @@ func TestMgmtExtension(t *testing.T) {
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		resp, err := resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err := resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -638,22 +646,40 @@ func TestMgmtExtension(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "setting up mgmt routes")
 	})
 
-	Convey("Verify mgmt route enabled for uploading certificates and public keys", t, func() {
+	Convey("Verify mgmt routes enabled for uploading notation certificates", t, func() {
 		globalDir := t.TempDir()
+
 		conf := config.New()
 		port := test.GetFreePort()
-		conf.HTTP.Port = port
-		baseURL := test.GetBaseURL(port)
-
-		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
-		So(err, ShouldBeNil)
 		defaultValue := true
 
-		conf.Commit = "v1.0.0"
+		conf.HTTP.Port = port
+		conf.Extensions = &extconf.ExtensionConfig{}
+		conf.Extensions.Search = &extconf.SearchConfig{}
+		conf.Extensions.Search.Enable = &defaultValue
+		conf.Extensions.Search.CVE = nil
+		conf.Extensions.Mgmt = &extconf.MgmtConfig{
+			BaseConfig: extconf.BaseConfig{
+				Enable: &defaultValue,
+			},
+		}
+
+		baseURL := test.GetBaseURL(port)
+		repo := "repo"
+		tag := "0.0.1"
+		certName := "test"
+		gqlEndpoint := fmt.Sprintf("%s%s?query=", baseURL, constants.FullSearchPrefix)
+
+		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
+		defer os.Remove(logFile.Name()) // cleanup
+		So(err, ShouldBeNil)
+
+		logger := log.NewLogger("debug", logFile.Name())
+		writers := io.MultiWriter(os.Stdout, logFile)
+		logger.Logger = logger.Output(writers)
 
 		imageStore := local.NewImageStore(globalDir, false, 0, false, false,
-			log.NewLogger("debug", logFile.Name()), monitoring.NewMetricsServer(false,
-				log.NewLogger("debug", logFile.Name())), nil, nil)
+			logger, monitoring.NewMetricsServer(false, logger), nil, nil)
 
 		storeController := storage.StoreController{
 			DefaultStore: imageStore,
@@ -667,39 +693,474 @@ func TestMgmtExtension(t *testing.T) {
 				Manifest:  manifest,
 				Layers:    layers,
 				Config:    config,
-				Reference: "0.0.1",
-			}, "repo", storeController,
+				Reference: tag,
+			}, repo, storeController,
 		)
 		So(err, ShouldBeNil)
 
-		sigConfig, sigLayers, sigManifest, err := test.GetRandomImageComponents(10)
+		manifestBlob, err := json.Marshal(manifest)
 		So(err, ShouldBeNil)
 
-		ref, _ := test.GetCosignSignatureTagForManifest(manifest)
-		err = test.WriteImageToFileSystem(
-			test.Image{
-				Manifest:  sigManifest,
-				Layers:    sigLayers,
-				Config:    sigConfig,
-				Reference: ref,
-			}, "repo", storeController,
-		)
+		manifestDigest := godigest.FromBytes(manifestBlob)
+
+		ctlr := api.NewController(conf)
+		ctlr.Log.Logger = ctlr.Log.Output(writers)
+
+		ctlr.Config.Storage.RootDirectory = globalDir
+
+		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager.StartAndWait(port)
+		defer ctlrManager.StopServer()
+
+		found, err := test.ReadLogFileAndSearchString(logFile.Name(), "setting up mgmt routes", time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		gqlQuery := `
+			{
+				Image(image:"%s:%s"){
+					RepoName Tag Digest IsSigned
+					Manifests {
+						Digest
+						SignatureInfo { Tool IsTrusted Author }
+					}
+					SignatureInfo { Tool IsTrusted Author }
+				}
+			}`
+		strQuery := fmt.Sprintf(gqlQuery, repo, tag)
+		gqlTargetURL := fmt.Sprintf("%s%s", gqlEndpoint, url.QueryEscape(strQuery))
+
+		// Verify the image is initially shown as not being signed
+		resp, err := resty.R().Get(gqlTargetURL)
+		So(resp, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+		So(resp.Body(), ShouldNotBeNil)
+
+		imgSummaryResponse := zcommon.ImageSummaryResult{}
+		err = json.Unmarshal(resp.Body(), &imgSummaryResponse)
+		So(err, ShouldBeNil)
+		So(imgSummaryResponse, ShouldNotBeNil)
+		So(imgSummaryResponse.ImageSummary, ShouldNotBeNil)
+		imgSummary := imgSummaryResponse.SingleImageSummary.ImageSummary
+		So(imgSummary.RepoName, ShouldContainSubstring, repo)
+		So(imgSummary.Tag, ShouldContainSubstring, tag)
+		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.Manifests[0].Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.IsSigned, ShouldEqual, false)
+		So(imgSummary.SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.SignatureInfo), ShouldEqual, 0)
+		So(imgSummary.Manifests[0].SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.Manifests[0].SignatureInfo), ShouldEqual, 0)
+
+		rootDir := t.TempDir()
+
+		test.NotationPathLock.Lock()
+		defer test.NotationPathLock.Unlock()
+
+		test.LoadNotationPath(rootDir)
+
+		// generate a keypair
+		err = test.GenerateNotationCerts(rootDir, certName)
 		So(err, ShouldBeNil)
 
+		// upload the certificate
+		certificateContent, err := os.ReadFile(path.Join(rootDir, "notation/localkeys", fmt.Sprintf("%s.crt", certName)))
+		So(err, ShouldBeNil)
+		So(certificateContent, ShouldNotBeNil)
+
+		client := resty.New()
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetQueryParam("truststoreName", certName).
+			SetBody(certificateContent).Post(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
+
+		// sign the image
+		image := fmt.Sprintf("localhost:%s/%s", port, fmt.Sprintf("%s:%s", repo, tag))
+
+		err = test.SignWithNotation(certName, image, rootDir)
+		So(err, ShouldBeNil)
+
+		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "updating signatures validity", 10*time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "verifying signatures successfully completed",
+			time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		// verify the image is shown as signed and trusted
+		resp, err = resty.R().Get(gqlTargetURL)
+		So(resp, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+		So(resp.Body(), ShouldNotBeNil)
+
+		imgSummaryResponse = zcommon.ImageSummaryResult{}
+		err = json.Unmarshal(resp.Body(), &imgSummaryResponse)
+		So(err, ShouldBeNil)
+		So(imgSummaryResponse, ShouldNotBeNil)
+		So(imgSummaryResponse.ImageSummary, ShouldNotBeNil)
+		imgSummary = imgSummaryResponse.SingleImageSummary.ImageSummary
+		So(imgSummary.RepoName, ShouldContainSubstring, repo)
+		So(imgSummary.Tag, ShouldContainSubstring, tag)
+		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.Manifests[0].Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		t.Log(imgSummary.SignatureInfo)
+		So(imgSummary.IsSigned, ShouldEqual, true)
+		So(imgSummary.SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.SignatureInfo), ShouldEqual, 1)
+		So(imgSummary.SignatureInfo[0].IsTrusted, ShouldEqual, true)
+		So(imgSummary.SignatureInfo[0].Tool, ShouldEqual, "notation")
+		So(imgSummary.SignatureInfo[0].Author,
+			ShouldEqual, "CN=cert,O=Notary,L=Seattle,ST=WA,C=US")
+		So(imgSummary.Manifests[0].SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.Manifests[0].SignatureInfo), ShouldEqual, 1)
+		t.Log(imgSummary.Manifests[0].SignatureInfo)
+		So(imgSummary.Manifests[0].SignatureInfo[0].IsTrusted, ShouldEqual, true)
+		So(imgSummary.Manifests[0].SignatureInfo[0].Tool, ShouldEqual, "notation")
+		So(imgSummary.Manifests[0].SignatureInfo[0].Author,
+			ShouldEqual, "CN=cert,O=Notary,L=Seattle,ST=WA,C=US")
+
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetBody(certificateContent).Post(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetQueryParam("truststoreName", "").
+			SetBody(certificateContent).Post(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetQueryParam("truststoreName", "test").
+			SetQueryParam("truststoreType", "signatureAuthority").
+			SetBody([]byte("wrong content")).Post(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+
+		resp, err = client.R().Get(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusMethodNotAllowed)
+
+		resp, err = client.R().Post(baseURL + constants.FullMgmtNotation)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+	})
+
+	Convey("Verify mgmt routes enabled for uploading cosign public keys", t, func() {
+		globalDir := t.TempDir()
+
+		conf := config.New()
+		port := test.GetFreePort()
+		defaultValue := true
+
+		conf.HTTP.Port = port
 		conf.Extensions = &extconf.ExtensionConfig{}
 		conf.Extensions.Search = &extconf.SearchConfig{}
 		conf.Extensions.Search.Enable = &defaultValue
+		conf.Extensions.Search.CVE = nil
 		conf.Extensions.Mgmt = &extconf.MgmtConfig{
 			BaseConfig: extconf.BaseConfig{
 				Enable: &defaultValue,
 			},
 		}
 
-		conf.Log.Output = logFile.Name()
+		baseURL := test.GetBaseURL(port)
+		repo := "repo"
+		tag := "0.0.1"
+		gqlEndpoint := fmt.Sprintf("%s%s?query=", baseURL, constants.FullSearchPrefix)
+
+		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
 		defer os.Remove(logFile.Name()) // cleanup
+		So(err, ShouldBeNil)
+
+		logger := log.NewLogger("debug", logFile.Name())
+		writers := io.MultiWriter(os.Stdout, logFile)
+		logger.Logger = logger.Output(writers)
+
+		imageStore := local.NewImageStore(globalDir, false, 0, false, false,
+			logger, monitoring.NewMetricsServer(false, logger), nil, nil)
+
+		storeController := storage.StoreController{
+			DefaultStore: imageStore,
+		}
+
+		config, layers, manifest, err := test.GetRandomImageComponents(10)
+		So(err, ShouldBeNil)
+
+		err = test.WriteImageToFileSystem(
+			test.Image{
+				Manifest:  manifest,
+				Layers:    layers,
+				Config:    config,
+				Reference: tag,
+			}, repo, storeController,
+		)
+		So(err, ShouldBeNil)
+
+		manifestBlob, err := json.Marshal(manifest)
+		So(err, ShouldBeNil)
+
+		manifestDigest := godigest.FromBytes(manifestBlob)
 
 		ctlr := api.NewController(conf)
+		ctlr.Log.Logger = ctlr.Log.Output(writers)
 
+		ctlr.Config.Storage.RootDirectory = globalDir
+
+		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager.StartAndWait(port)
+		defer ctlrManager.StopServer()
+
+		found, err := test.ReadLogFileAndSearchString(logFile.Name(), "setting up mgmt routes", time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		gqlQuery := `
+			{
+				Image(image:"%s:%s"){
+					RepoName Tag Digest IsSigned
+					Manifests {
+						Digest
+						SignatureInfo { Tool IsTrusted Author }
+					}
+					SignatureInfo { Tool IsTrusted Author }
+				}
+			}`
+		strQuery := fmt.Sprintf(gqlQuery, repo, tag)
+		gqlTargetURL := fmt.Sprintf("%s%s", gqlEndpoint, url.QueryEscape(strQuery))
+
+		// Verify the image is initially shown as not being signed
+		resp, err := resty.R().Get(gqlTargetURL)
+		So(resp, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+		So(resp.Body(), ShouldNotBeNil)
+
+		imgSummaryResponse := zcommon.ImageSummaryResult{}
+		err = json.Unmarshal(resp.Body(), &imgSummaryResponse)
+		So(err, ShouldBeNil)
+		So(imgSummaryResponse, ShouldNotBeNil)
+		So(imgSummaryResponse.ImageSummary, ShouldNotBeNil)
+		imgSummary := imgSummaryResponse.SingleImageSummary.ImageSummary
+		So(imgSummary.RepoName, ShouldContainSubstring, repo)
+		So(imgSummary.Tag, ShouldContainSubstring, tag)
+		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.Manifests[0].Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.IsSigned, ShouldEqual, false)
+		So(imgSummary.SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.SignatureInfo), ShouldEqual, 0)
+		So(imgSummary.Manifests[0].SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.Manifests[0].SignatureInfo), ShouldEqual, 0)
+
+		// generate a keypair
+		keyDir := t.TempDir()
+
+		cwd, err := os.Getwd()
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(keyDir)
+
+		os.Setenv("COSIGN_PASSWORD", "")
+		err = generate.GenerateKeyPairCmd(context.TODO(), "", "cosign", nil)
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(cwd)
+
+		publicKeyContent, err := os.ReadFile(path.Join(keyDir, "cosign.pub"))
+		So(err, ShouldBeNil)
+		So(publicKeyContent, ShouldNotBeNil)
+
+		// upload the public key
+		client := resty.New()
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
+
+		// sign the image
+		err = sign.SignCmd(&options.RootOptions{Verbose: true, Timeout: 1 * time.Minute},
+			options.KeyOpts{KeyRef: path.Join(keyDir, "cosign.key"), PassFunc: generate.GetPass},
+			options.SignOptions{
+				Registry:          options.RegistryOptions{AllowInsecure: true},
+				AnnotationOptions: options.AnnotationOptions{Annotations: []string{fmt.Sprintf("tag=%s", tag)}},
+				Upload:            true,
+			},
+			[]string{fmt.Sprintf("localhost:%s/%s@%s", port, repo, manifestDigest.String())})
+		So(err, ShouldBeNil)
+
+		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "updating signatures validity", 10*time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "verifying signatures successfully completed",
+			time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		// verify the image is shown as signed and trusted
+		resp, err = resty.R().Get(gqlTargetURL)
+		So(resp, ShouldNotBeNil)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, 200)
+		So(resp.Body(), ShouldNotBeNil)
+
+		imgSummaryResponse = zcommon.ImageSummaryResult{}
+		err = json.Unmarshal(resp.Body(), &imgSummaryResponse)
+		So(err, ShouldBeNil)
+		So(imgSummaryResponse, ShouldNotBeNil)
+		So(imgSummaryResponse.ImageSummary, ShouldNotBeNil)
+		imgSummary = imgSummaryResponse.SingleImageSummary.ImageSummary
+		So(imgSummary.RepoName, ShouldContainSubstring, repo)
+		So(imgSummary.Tag, ShouldContainSubstring, tag)
+		So(imgSummary.Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		So(imgSummary.Manifests[0].Digest, ShouldContainSubstring, manifestDigest.Encoded())
+		t.Log(imgSummary.SignatureInfo)
+		So(imgSummary.SignatureInfo, ShouldNotBeNil)
+		So(imgSummary.IsSigned, ShouldEqual, true)
+		So(len(imgSummary.SignatureInfo), ShouldEqual, 1)
+		So(imgSummary.SignatureInfo[0].IsTrusted, ShouldEqual, true)
+		So(imgSummary.SignatureInfo[0].Tool, ShouldEqual, "cosign")
+		So(imgSummary.SignatureInfo[0].Author, ShouldEqual, string(publicKeyContent))
+		So(imgSummary.Manifests[0].SignatureInfo, ShouldNotBeNil)
+		So(len(imgSummary.Manifests[0].SignatureInfo), ShouldEqual, 1)
+		t.Log(imgSummary.Manifests[0].SignatureInfo)
+		So(imgSummary.Manifests[0].SignatureInfo[0].IsTrusted, ShouldEqual, true)
+		So(imgSummary.Manifests[0].SignatureInfo[0].Tool, ShouldEqual, "cosign")
+		So(imgSummary.Manifests[0].SignatureInfo[0].Author, ShouldEqual, string(publicKeyContent))
+
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetBody([]byte("wrong content")).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+
+		resp, err = client.R().Get(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusMethodNotAllowed)
+
+		resp, err = client.R().Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+	})
+
+	Convey("Verify mgmt routes enabled for uploading cosign public keys with auth configured", t, func() {
+		globalDir := t.TempDir()
+
+		testCreds := test.GetCredString("admin", "admin") + "\n" + test.GetCredString("test", "test")
+		htpasswdPath := test.MakeHtpasswdFileFromString(testCreds)
+
+		conf := config.New()
+		port := test.GetFreePort()
+		defaultValue := true
+
+		conf.HTTP.Port = port
+		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
+		conf.HTTP.AccessControl = &config.AccessControlConfig{
+			AdminPolicy: config.Policy{
+				Users:   []string{"admin"},
+				Actions: []string{},
+			},
+		}
+		conf.Extensions = &extconf.ExtensionConfig{}
+		conf.Extensions.Search = nil
+		conf.Extensions.Mgmt = &extconf.MgmtConfig{
+			BaseConfig: extconf.BaseConfig{
+				Enable: &defaultValue,
+			},
+		}
+
+		baseURL := test.GetBaseURL(port)
+
+		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
+		defer os.Remove(logFile.Name()) // cleanup
+		So(err, ShouldBeNil)
+
+		logger := log.NewLogger("debug", logFile.Name())
+		writers := io.MultiWriter(os.Stdout, logFile)
+		logger.Logger = logger.Output(writers)
+
+		ctlr := api.NewController(conf)
+		ctlr.Log.Logger = ctlr.Log.Output(writers)
+
+		ctlr.Config.Storage.RootDirectory = globalDir
+
+		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager.StartAndWait(port)
+		defer ctlrManager.StopServer()
+
+		found, err := test.ReadLogFileAndSearchString(logFile.Name(), "setting up mgmt routes", time.Second)
+		So(err, ShouldBeNil)
+		So(found, ShouldBeTrue)
+
+		// generate a keypair
+		keyDir := t.TempDir()
+
+		cwd, err := os.Getwd()
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(keyDir)
+
+		os.Setenv("COSIGN_PASSWORD", "")
+		err = generate.GenerateKeyPairCmd(context.TODO(), "", "cosign", nil)
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(cwd)
+
+		publicKeyContent, err := os.ReadFile(path.Join(keyDir, "cosign.pub"))
+		So(err, ShouldBeNil)
+		So(publicKeyContent, ShouldNotBeNil)
+
+		// fail to upload the public key without credentials
+		client := resty.New()
+		resp, err := client.R().SetHeader("Content-type", "application/octet-stream").
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
+
+		// fail to upload the public key with bad credentials
+		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
+
+		// upload the public key using credentials and non-admin user
+		resp, err = client.R().SetBasicAuth("test", "test").SetHeader("Content-type", "application/octet-stream").
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusForbidden)
+
+		// upload the public key using credentials and admin user
+		resp, err = client.R().SetBasicAuth("admin", "admin").SetHeader("Content-type", "application/octet-stream").
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
+	})
+
+	Convey("Verify failures when saving uploaded certificates and public keys", t, func() {
+		globalDir := t.TempDir()
+		conf := config.New()
+		port := test.GetFreePort()
+		conf.HTTP.Port = port
+		baseURL := test.GetBaseURL(port)
+
+		So(err, ShouldBeNil)
+		defaultValue := true
+
+		conf.Extensions = &extconf.ExtensionConfig{}
+		conf.Extensions.Search = &extconf.SearchConfig{}
+		conf.Extensions.Search.Enable = &defaultValue
+		conf.Extensions.Search.CVE = nil
+		conf.Extensions.Mgmt = &extconf.MgmtConfig{
+			BaseConfig: extconf.BaseConfig{
+				Enable: &defaultValue,
+			},
+		}
+
+		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = globalDir
 
 		ctlrManager := test.NewControllerManager(ctlr)
@@ -713,7 +1174,7 @@ func TestMgmtExtension(t *testing.T) {
 
 		test.LoadNotationPath(rootDir)
 
-		// generate a keypair
+		// generate Notation cert
 		err = test.GenerateNotationCerts(rootDir, "test")
 		So(err, ShouldBeNil)
 
@@ -721,73 +1182,82 @@ func TestMgmtExtension(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(certificateContent, ShouldNotBeNil)
 
+		// generate Cosign keys
+		keyDir := t.TempDir()
+
+		cwd, err := os.Getwd()
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(keyDir)
+
+		os.Setenv("COSIGN_PASSWORD", "")
+		err = generate.GenerateKeyPairCmd(context.TODO(), "", "cosign", nil)
+		So(err, ShouldBeNil)
+
+		_ = os.Chdir(cwd)
+
+		publicKeyContent, err := os.ReadFile(path.Join(keyDir, "cosign.pub"))
+		So(err, ShouldBeNil)
+		So(publicKeyContent, ShouldNotBeNil)
+
+		// Make sure the write to disk fails
+		So(os.Chmod(globalDir, 0o000), ShouldBeNil)
+		defer func() {
+			So(os.Chmod(globalDir, 0o755), ShouldBeNil)
+		}()
+
 		client := resty.New()
 		resp, err := client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "notation").SetQueryParam("truststoreName", "test").
-			SetBody(certificateContent).Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-
-		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "notation").
-			SetBody(certificateContent).Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
-
-		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "notation").SetQueryParam("truststoreName", "").
-			SetBody(certificateContent).Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
-
-		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "notation").SetQueryParam("truststoreName", "test").
-			SetQueryParam("truststoreType", "signatureAuthority").
-			SetBody([]byte("wrong content")).Post(baseURL + constants.FullMgmtPrefix)
+			SetQueryParam("truststoreName", "test").
+			SetBody(certificateContent).Post(baseURL + constants.FullMgmtNotation)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusInternalServerError)
 
 		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "invalidTool").
-			SetBody(certificateContent).Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
-
-		resp, err = client.R().SetHeader("Content-type", "application/octet-stream").
-			SetQueryParam("resource", "signatures").SetQueryParam("tool", "cosign").
-			SetBody([]byte("wrong content")).Post(baseURL + constants.FullMgmtPrefix)
+			SetBody(publicKeyContent).Post(baseURL + constants.FullMgmtCosign)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusInternalServerError)
+	})
+}
 
-		resp, err = client.R().SetQueryParam("resource", "signatures").SetQueryParam("tool", "cosign").
-			Get(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+type errReader int
 
-		resp, err = client.R().SetQueryParam("resource", "signatures").Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+func (errReader) Read(p []byte) (int, error) {
+	return 0, fmt.Errorf("test error") //nolint:goerr113
+}
 
-		resp, err = client.R().SetQueryParam("resource", "config").Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+func TestSignatureHandlers(t *testing.T) {
+	conf := config.New()
+	log := log.NewLogger("debug", "")
 
-		resp, err = client.R().SetQueryParam("resource", "invalid").Post(baseURL + constants.FullMgmtPrefix)
-		So(err, ShouldBeNil)
-		So(resp.StatusCode(), ShouldEqual, http.StatusBadRequest)
+	mgmt := extensions.Mgmt{
+		Conf: conf,
+		Log:  log,
+	}
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(), "setting up mgmt routes", time.Second)
-		So(err, ShouldBeNil)
-		So(found, ShouldBeTrue)
+	Convey("Test error handling when Cosign handler reads the request body", t, func() {
+		request, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, "baseURL", errReader(0))
+		response := httptest.NewRecorder()
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "updating signatures validity", 10*time.Second)
-		So(err, ShouldBeNil)
-		So(found, ShouldBeTrue)
+		mgmt.HandleCosignPublicKeyUpload(response, request)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(), "verifying signatures successfully completed",
-			time.Second)
-		So(err, ShouldBeNil)
-		So(found, ShouldBeTrue)
+		resp := response.Result()
+		defer resp.Body.Close()
+		So(resp.StatusCode, ShouldEqual, http.StatusInternalServerError)
+	})
+
+	Convey("Test error handling when Notation handler reads the request body", t, func() {
+		request, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, "baseURL", errReader(0))
+		query := request.URL.Query()
+		query.Add("truststoreName", "someName")
+		request.URL.RawQuery = query.Encode()
+
+		response := httptest.NewRecorder()
+		mgmt.HandleNotationCertificateUpload(response, request)
+
+		resp := response.Result()
+		defer resp.Body.Close()
+		So(resp.StatusCode, ShouldEqual, http.StatusInternalServerError)
 	})
 }
 
@@ -911,7 +1381,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
 		// test mgmt route
-		resp, err = resty.R().Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -925,7 +1395,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.HTPasswd, ShouldBeNil)
 		So(mgmtResp.HTTP.Auth.LDAP, ShouldBeNil)
 
-		resp, err = resty.R().SetBasicAuth("", "").Get(baseURL + constants.FullMgmtPrefix)
+		resp, err = resty.R().SetBasicAuth("", "").Get(baseURL + constants.FullMgmtAuth)
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
@@ -963,38 +1433,19 @@ func TestAllowedMethodsHeaderMgmt(t *testing.T) {
 		ctrlManager.StartAndWait(port)
 		defer ctrlManager.StopServer()
 
-		resp, _ := resty.R().Options(baseURL + constants.FullMgmtPrefix)
+		resp, _ := resty.R().Options(baseURL + constants.FullMgmtAuth)
 		So(resp, ShouldNotBeNil)
-		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "GET,POST,OPTIONS")
+		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "GET,OPTIONS")
 		So(resp.StatusCode(), ShouldEqual, http.StatusNoContent)
-	})
-}
 
-func TestAllowedMethodsHeaderAPIKey(t *testing.T) {
-	defaultVal := true
-
-	Convey("Test http options response", t, func() {
-		conf := config.New()
-		port := test.GetFreePort()
-		conf.HTTP.Port = port
-		conf.Extensions = &extconf.ExtensionConfig{
-			APIKey: &extconf.APIKeyConfig{
-				BaseConfig: extconf.BaseConfig{Enable: &defaultVal},
-			},
-		}
-		baseURL := test.GetBaseURL(port)
-
-		ctlr := api.NewController(conf)
-		ctlr.Config.Storage.RootDirectory = t.TempDir()
-
-		ctrlManager := test.NewControllerManager(ctlr)
-
-		ctrlManager.StartAndWait(port)
-		defer ctrlManager.StopServer()
-
-		resp, _ := resty.R().Options(baseURL + constants.FullAPIKeyPrefix)
+		resp, _ = resty.R().Options(baseURL + constants.FullMgmtCosign)
 		So(resp, ShouldNotBeNil)
-		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "POST,DELETE,OPTIONS")
+		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "POST,OPTIONS")
+		So(resp.StatusCode(), ShouldEqual, http.StatusNoContent)
+
+		resp, _ = resty.R().Options(baseURL + constants.FullMgmtNotation)
+		So(resp, ShouldNotBeNil)
+		So(resp.Header().Get("Access-Control-Allow-Methods"), ShouldResemble, "POST,OPTIONS")
 		So(resp.StatusCode(), ShouldEqual, http.StatusNoContent)
 	})
 }

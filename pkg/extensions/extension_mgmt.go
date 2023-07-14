@@ -6,6 +6,7 @@ package extensions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/opencontainers/go-digest"
 
+	zerr "zotregistry.io/zot/errors"
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
 	zcommon "zotregistry.io/zot/pkg/common"
@@ -90,98 +92,130 @@ func (auth Auth) MarshalJSON() ([]byte, error) {
 	return json.Marshal((localAuth)(auth))
 }
 
-type mgmt struct {
-	config *config.Config
-	log    log.Logger
-}
-
-func (mgmt *mgmt) handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var resource string
-
-		if zcommon.QueryHasParams(r.URL.Query(), []string{"resource"}) {
-			resource = r.URL.Query().Get("resource")
-		} else {
-			resource = ConfigResource // default value of "resource" query param
-		}
-
-		switch resource {
-		case ConfigResource:
-			if r.Method == http.MethodGet {
-				mgmt.HandleGetConfig(w, r)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-
-			return
-		case SignaturesResource:
-			if r.Method == http.MethodPost {
-				HandleCertificatesAndPublicKeysUploads(w, r) //nolint: contextcheck
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-
-			return
-		default:
-			w.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-	})
-}
-
-func SetupMgmtRoutes(config *config.Config, router *mux.Router, log log.Logger) {
-	if config.Extensions.Mgmt != nil && *config.Extensions.Mgmt.Enable {
-		log.Info().Msg("setting up mgmt routes")
-
-		mgmt := mgmt{config: config, log: log}
-
-		allowedMethods := zcommon.AllowedMethods(http.MethodGet, http.MethodPost)
-
-		mgmtRouter := router.PathPrefix(constants.ExtMgmt).Subrouter()
-		mgmtRouter.Use(zcommon.ACHeadersHandler(config, allowedMethods...))
-		mgmtRouter.Use(zcommon.AddExtensionSecurityHeaders())
-		mgmtRouter.Methods(allowedMethods...).Handler(mgmt.handler())
+func SetupMgmtRoutes(conf *config.Config, router *mux.Router, log log.Logger) {
+	if conf.Extensions.Mgmt == nil || !*conf.Extensions.Mgmt.Enable {
+		return
 	}
+
+	log.Info().Msg("setting up mgmt routes")
+
+	mgmt := Mgmt{Conf: conf, Log: log}
+
+	// The endpoint for reading configuration should be available to all users
+	mgmtRouter := router.PathPrefix(constants.MgmtPrefix).Subrouter()
+	mgmtRouter.Use(zcommon.CORSHeadersMiddleware(conf.HTTP.AllowOrigin))
+	mgmtRouter.Use(zcommon.AddExtensionSecurityHeaders())
+
+	allowedMethods := zcommon.AllowedMethods(http.MethodGet)
+
+	authInfoRouter := mgmtRouter.PathPrefix(constants.AuthInfo).Subrouter()
+	authInfoRouter.Use(zcommon.ACHeadersMiddleware(conf, allowedMethods...))
+	authInfoRouter.Methods(allowedMethods...).HandlerFunc(mgmt.HandleGetConfig)
+
+	allowedMethods = zcommon.AllowedMethods(http.MethodPost)
+
+	// The endpoints for uploading signatures should be available only to admins
+	notationRouter := mgmtRouter.PathPrefix(constants.Notation).Subrouter()
+	notationRouter.Use(zcommon.ACHeadersMiddleware(conf, allowedMethods...))
+	notationRouter.Use(zcommon.AuthzOnlyAdminsMiddleware(conf))
+	notationRouter.Methods(allowedMethods...).HandlerFunc(mgmt.HandleNotationCertificateUpload)
+
+	cosignRouter := mgmtRouter.PathPrefix(constants.Cosign).Subrouter()
+	cosignRouter.Use(zcommon.ACHeadersMiddleware(conf, allowedMethods...))
+	cosignRouter.Use(zcommon.AuthzOnlyAdminsMiddleware(conf))
+	cosignRouter.Methods(allowedMethods...).HandlerFunc(mgmt.HandleCosignPublicKeyUpload)
 }
 
-// mgmtHandler godoc
+type Mgmt struct {
+	Conf *config.Config
+	Log  log.Logger
+}
+
+// Auth info handler godoc
 // @Summary Get current server configuration
 // @Description Get current server configuration
-// @Router 	/v2/_zot/ext/mgmt [get]
+// @Router  /v2/_zot/mgmt/auth [get]
 // @Accept  json
 // @Produce json
-// @Param 	resource 	 query 	 string			false	"specify resource" Enums(config)
-// @Success 200 {object} 	extensions.StrippedConfig
-// @Failure 500 {string} 	string 				"internal server error".
-func (mgmt *mgmt) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
-	sanitizedConfig := mgmt.config.Sanitize()
+// @Param   resource       query     string   false   "specify resource" Enums(config)
+// @Success 200 {object}   extensions.StrippedConfig
+// @Failure 500 {string}   string   "internal server error".
+func (mgmt *Mgmt) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
+	sanitizedConfig := mgmt.Conf.Sanitize()
 
 	buf, err := zcommon.MarshalThroughStruct(sanitizedConfig, &StrippedConfig{})
 	if err != nil {
-		mgmt.log.Error().Err(err).Msg("mgmt: couldn't marshal config response")
+		mgmt.Log.Error().Err(err).Msg("mgmt: couldn't marshal config response")
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
 	_, _ = w.Write(buf)
 }
 
-// mgmtHandler godoc
-// @Summary Upload certificates and public keys for verifying signatures
-// @Description Upload certificates and public keys for verifying signatures
-// @Router 	/v2/_zot/ext/mgmt [post]
+// Cosign handler godoc
+// @Summary Upload cosign public keys for verifying signatures
+// @Description Upload cosign public keys for verifying signatures
+// @Router   /v2/_zot/mgmt/cosign [post]
 // @Accept  octet-stream
 // @Produce json
-// @Param 	resource 	 query 	 string 		true	"specify resource" Enums(signatures)
-// @Param 	tool 	 query 	 string 		true	"specify signing tool" Enums(cosign, notation)
-// @Param   truststoreType     	 query    string			false	"truststore type"
-// @Param   truststoreName     	 query    string			false	"truststore name"
-// @Param   requestBody		body	string		true	"Public key or Certificate content"
-// @Success 200 {string}    string              "ok"
-// @Failure 400 {string} 	string 				"bad request".
-// @Failure 500 {string} 	string 				"internal server error".
-func HandleCertificatesAndPublicKeysUploads(response http.ResponseWriter, request *http.Request) {
-	if !zcommon.QueryHasParams(request.URL.Query(), []string{"tool"}) {
+// @Param   requestBody     body     string   true   "Public key content"
+// @Success 200 {string}   string    "ok"
+// @Failure 400 {string}   string    "bad request".
+// @Failure 500 {string}   string    "internal server error".
+func (mgmt *Mgmt) HandleCosignPublicKeyUpload(response http.ResponseWriter, request *http.Request) {
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		mgmt.Log.Error().Err(err).Msg("mgmt: couldn't read cosign key body")
+		response.WriteHeader(http.StatusInternalServerError)
+
+		return
+	}
+
+	err = signatures.UploadPublicKey(body)
+	if err != nil {
+		if errors.Is(err, zerr.ErrInvalidPublicKeyContent) {
+			response.WriteHeader(http.StatusBadRequest)
+		} else {
+			mgmt.Log.Error().Err(err).Msg("mgmt: failed to save cosign key")
+			response.WriteHeader(http.StatusInternalServerError)
+		}
+
+		return
+	}
+
+	response.WriteHeader(http.StatusOK)
+}
+
+// Notation handler godoc
+// @Summary Upload notation certificates for verifying signatures
+// @Description Upload notation certificates for verifying signatures
+// @Router  /v2/_zot/mgmt/notation [post]
+// @Accept  octet-stream
+// @Produce json
+// @Param   truststoreType  query    string   false  "truststore type"
+// @Param   truststoreName  query    string   false  "truststore name"
+// @Param   requestBody     body     string   true   "Certificate content"
+// @Success 200 {string}   string    "ok"
+// @Failure 400 {string}   string    "bad request".
+// @Failure 500 {string}   string    "internal server error".
+func (mgmt *Mgmt) HandleNotationCertificateUpload(response http.ResponseWriter, request *http.Request) {
+	var truststoreType string
+
+	if !zcommon.QueryHasParams(request.URL.Query(), []string{"truststoreName"}) {
+		response.WriteHeader(http.StatusBadRequest)
+
+		return
+	}
+
+	if zcommon.QueryHasParams(request.URL.Query(), []string{"truststoreType"}) {
+		truststoreType = request.URL.Query().Get("truststoreType")
+	} else {
+		truststoreType = "ca" // default value of "truststoreType" query param
+	}
+
+	truststoreName := request.URL.Query().Get("truststoreName")
+
+	if truststoreType == "" || truststoreName == "" {
 		response.WriteHeader(http.StatusBadRequest)
 
 		return
@@ -189,52 +223,22 @@ func HandleCertificatesAndPublicKeysUploads(response http.ResponseWriter, reques
 
 	body, err := io.ReadAll(request.Body)
 	if err != nil {
+		mgmt.Log.Error().Err(err).Msg("mgmt: couldn't read notation certificate body")
 		response.WriteHeader(http.StatusInternalServerError)
 
 		return
 	}
 
-	tool := request.URL.Query().Get("tool")
-
-	switch tool {
-	case signatures.CosignSignature:
-		err := signatures.UploadPublicKey(body)
-		if err != nil {
-			response.WriteHeader(http.StatusInternalServerError)
-
-			return
-		}
-	case signatures.NotationSignature:
-		var truststoreType string
-
-		if !zcommon.QueryHasParams(request.URL.Query(), []string{"truststoreName"}) {
+	err = signatures.UploadCertificate(body, truststoreType, truststoreName)
+	if err != nil {
+		if errors.Is(err, zerr.ErrInvalidTruststoreType) ||
+			errors.Is(err, zerr.ErrInvalidTruststoreName) ||
+			errors.Is(err, zerr.ErrInvalidCertificateContent) {
 			response.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-
-		if zcommon.QueryHasParams(request.URL.Query(), []string{"truststoreType"}) {
-			truststoreType = request.URL.Query().Get("truststoreType")
 		} else {
-			truststoreType = "ca" // default value of "truststoreType" query param
-		}
-
-		truststoreName := request.URL.Query().Get("truststoreName")
-
-		if truststoreType == "" || truststoreName == "" {
-			response.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-
-		err = signatures.UploadCertificate(body, truststoreType, truststoreName)
-		if err != nil {
+			mgmt.Log.Error().Err(err).Msg("mgmt: failed to save notation certificate")
 			response.WriteHeader(http.StatusInternalServerError)
-
-			return
 		}
-	default:
-		response.WriteHeader(http.StatusBadRequest)
 
 		return
 	}
