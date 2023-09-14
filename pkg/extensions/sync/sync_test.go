@@ -49,6 +49,7 @@ import (
 	storageConstants "zotregistry.io/zot/pkg/storage/constants"
 	"zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/cosign"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -749,7 +750,7 @@ func TestOnDemand(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			// sign using cosign
-			err = test.SignImageUsingCosign(fmt.Sprintf("remote-repo@%s", manifestDigest.String()), port)
+			err = cosign.SignImageUsingCosign(fmt.Sprintf("remote-repo@%s", manifestDigest.String()), port)
 			So(err, ShouldBeNil)
 
 			// add cosign sbom
@@ -4464,7 +4465,7 @@ func TestSyncedSignaturesMetaDB(t *testing.T) {
 		err = test.SignImageUsingNotary(repoName+":"+tag, srcPort)
 		So(err, ShouldBeNil)
 
-		err = test.SignImageUsingCosign(repoName+":"+tag, srcPort)
+		err = cosign.SignImageUsingCosign(repoName+":"+tag, srcPort)
 		So(err, ShouldBeNil)
 
 		// Create destination registry

@@ -38,6 +38,7 @@ import (
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	"zotregistry.io/zot/pkg/extensions/imagetrust"
 	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -451,7 +452,7 @@ func TestVerifySignatures(t *testing.T) {
 			err = test.SignWithNotation("notation-sign-test", image, notationDir)
 			So(err, ShouldBeNil)
 
-			err = test.CopyFiles(path.Join(notationDir, "notation", "truststore"), path.Join(notationDir, "truststore"))
+			err = testc.CopyFiles(path.Join(notationDir, "notation", "truststore"), path.Join(notationDir, "truststore"))
 			So(err, ShouldBeNil)
 
 			err = os.RemoveAll(path.Join(notationDir, "notation"))

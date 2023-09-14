@@ -22,6 +22,7 @@ import (
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
 	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -46,7 +47,7 @@ func TestScanBigTestFile(t *testing.T) {
 		ctlr := api.NewController(conf)
 		So(ctlr, ShouldNotBeNil)
 
-		err = test.CopyFiles(testImage, filepath.Join(tempDir, "zot-test"))
+		err = testc.CopyFiles(testImage, filepath.Join(tempDir, "zot-test"))
 		So(err, ShouldBeNil)
 
 		cm := test.NewControllerManager(ctlr)

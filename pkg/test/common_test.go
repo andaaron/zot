@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -31,99 +30,6 @@ import (
 )
 
 var ErrTestError = errors.New("ErrTestError")
-
-func TestCopyFiles(t *testing.T) {
-	Convey("sourceDir does not exist", t, func() {
-		err := test.CopyFiles("/path/to/some/unexisting/directory", os.TempDir())
-		So(err, ShouldNotBeNil)
-	})
-	Convey("destDir is a file", t, func() {
-		dir := t.TempDir()
-
-		test.CopyTestFiles("../../test/data", dir)
-
-		err := test.CopyFiles(dir, "/etc/passwd")
-		So(err, ShouldNotBeNil)
-	})
-	Convey("sourceDir does not have read permissions", t, func() {
-		dir := t.TempDir()
-
-		err := os.Chmod(dir, 0o300)
-		So(err, ShouldBeNil)
-
-		err = test.CopyFiles(dir, os.TempDir())
-		So(err, ShouldNotBeNil)
-	})
-	Convey("sourceDir has a subfolder that does not have read permissions", t, func() {
-		dir := t.TempDir()
-
-		sdir := "subdir"
-		err := os.Mkdir(path.Join(dir, sdir), 0o300)
-		So(err, ShouldBeNil)
-
-		err = test.CopyFiles(dir, os.TempDir())
-		So(err, ShouldNotBeNil)
-	})
-	Convey("sourceDir has a file that does not have read permissions", t, func() {
-		dir := t.TempDir()
-
-		filePath := path.Join(dir, "file.txt")
-		err := os.WriteFile(filePath, []byte("some dummy file content"), 0o644) //nolint: gosec
-		if err != nil {
-			panic(err)
-		}
-
-		err = os.Chmod(filePath, 0o300)
-		So(err, ShouldBeNil)
-
-		err = test.CopyFiles(dir, os.TempDir())
-		So(err, ShouldNotBeNil)
-	})
-	Convey("sourceDir contains a folder starting with invalid characters", t, func() {
-		srcDir := t.TempDir()
-		dstDir := t.TempDir()
-
-		err := os.MkdirAll(path.Join(srcDir, "_trivy", "db"), 0o755)
-		if err != nil {
-			panic(err)
-		}
-
-		err = os.MkdirAll(path.Join(srcDir, "test-index"), 0o755)
-		if err != nil {
-			panic(err)
-		}
-
-		filePathTrivy := path.Join(srcDir, "_trivy", "db", "trivy.db")
-		err = os.WriteFile(filePathTrivy, []byte("some dummy file content"), 0o644) //nolint: gosec
-		if err != nil {
-			panic(err)
-		}
-
-		var index ispec.Index
-		content, err := json.Marshal(index)
-		if err != nil {
-			panic(err)
-		}
-
-		err = os.WriteFile(path.Join(srcDir, "test-index", "index.json"), content, 0o644) //nolint: gosec
-		if err != nil {
-			panic(err)
-		}
-
-		err = test.CopyFiles(srcDir, dstDir)
-		So(err, ShouldBeNil)
-
-		_, err = os.Stat(path.Join(dstDir, "_trivy", "db", "trivy.db"))
-		So(err, ShouldNotBeNil)
-		So(os.IsNotExist(err), ShouldBeTrue)
-
-		_, err = os.Stat(path.Join(dstDir, "test-index", "index.json"))
-		So(err, ShouldBeNil)
-	})
-	Convey("panic when sourceDir does not exist", t, func() {
-		So(func() { test.CopyTestFiles("/path/to/some/unexisting/directory", os.TempDir()) }, ShouldPanic)
-	})
-}
 
 func TestGetOciLayoutDigests(t *testing.T) {
 	dir := t.TempDir()
@@ -1512,48 +1418,5 @@ func TestWriteImageToFileSystem(t *testing.T) {
 func TestBearerServer(t *testing.T) {
 	Convey("test MakeAuthTestServer() no serve key", t, func() {
 		So(func() { test.MakeAuthTestServer("", "") }, ShouldPanic)
-	})
-}
-
-func TestCopyTestKeysAndCerts(t *testing.T) {
-	Convey("CopyTestKeysAndCerts", t, func() {
-		// ------- Make test files unreadable -------
-		dir := t.TempDir()
-		file := filepath.Join(dir, "ca.crt")
-
-		_, err := os.Create(file)
-		So(err, ShouldBeNil)
-
-		err = os.Chmod(file, 0o000)
-		So(err, ShouldBeNil)
-
-		err = test.CopyTestKeysAndCerts(dir)
-		So(err, ShouldNotBeNil)
-
-		err = os.Chmod(file, 0o777)
-		So(err, ShouldBeNil)
-
-		// ------- Copy fails -------
-
-		err = os.Chmod(dir, 0o000)
-		So(err, ShouldBeNil)
-
-		err = test.CopyTestKeysAndCerts(file)
-		So(err, ShouldNotBeNil)
-
-		err = os.Chmod(dir, 0o777)
-		So(err, ShouldBeNil)
-
-		// ------- Folder creation fails -------
-
-		file = filepath.Join(dir, "a-file.file")
-		_, err = os.Create(file)
-		So(err, ShouldBeNil)
-
-		_, err = os.Stat(file)
-		So(err, ShouldBeNil)
-
-		err = test.CopyTestKeysAndCerts(file)
-		So(err, ShouldNotBeNil)
 	})
 }

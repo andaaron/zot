@@ -34,6 +34,7 @@ import (
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
 	"zotregistry.io/zot/pkg/test"
+	"zotregistry.io/zot/pkg/test/cosign"
 )
 
 type errReader int
@@ -858,7 +859,7 @@ func RunSignatureUploadAndVerificationTests(t *testing.T, cacheDriverParams map[
 		// Write signature
 		signature := test.CreateImageWith().RandomLayers(1, 2).RandomConfig().Build()
 		So(err, ShouldBeNil)
-		ref, err := test.GetCosignSignatureTagForManifest(image.Manifest)
+		ref, err := cosign.GetCosignSignatureTagForManifest(image.Manifest)
 		So(err, ShouldBeNil)
 		err = test.WriteImageToFileSystem(signature, repo, ref, storeController)
 		So(err, ShouldBeNil)

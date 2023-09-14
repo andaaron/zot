@@ -6,6 +6,27 @@ import (
 	"gopkg.in/resty.v1"
 )
 
+type isser interface {
+	Is(string) bool
+}
+
+// Index returns the index of the first occurrence of name in s,
+// or -1 if not present.
+func Index[E isser](s []E, name string) int {
+	for i, v := range s {
+		if v.Is(name) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// Contains reports whether name is present in s.
+func Contains[E isser](s []E, name string) bool {
+	return Index(s, name) >= 0
+}
+
 func Location(baseURL string, resp *resty.Response) string {
 	// For some API responses, the Location header is set and is supposed to
 	// indicate an opaque value. However, it is not clear if this value is an

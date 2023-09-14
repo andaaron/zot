@@ -39,9 +39,6 @@ import (
 	"github.com/opencontainers/umoci"
 	"github.com/phayes/freeport"
 	"github.com/project-zot/mockoidc"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/generate"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/sign"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/resty.v1"
 	"oras.land/oras-go/v2/registry"
@@ -156,95 +153,6 @@ func MakeHtpasswdFileFromString(fileContent string) string {
 	}
 
 	return htpasswdFile.Name()
-}
-
-func CopyFiles(sourceDir, destDir string) error {
-	sourceMeta, err := os.Stat(sourceDir)
-	if err != nil {
-		return fmt.Errorf("CopyFiles os.Stat failed: %w", err)
-	}
-
-	if err := os.MkdirAll(destDir, sourceMeta.Mode()); err != nil {
-		return fmt.Errorf("CopyFiles os.MkdirAll failed: %w", err)
-	}
-
-	files, err := os.ReadDir(sourceDir)
-	if err != nil {
-		return fmt.Errorf("CopyFiles os.ReadDir failed: %w", err)
-	}
-
-	for _, file := range files {
-		sourceFilePath := path.Join(sourceDir, file.Name())
-		destFilePath := path.Join(destDir, file.Name())
-
-		if file.IsDir() {
-			if strings.HasPrefix(file.Name(), "_") {
-				// Some tests create the trivy related folders under test/_trivy
-				continue
-			}
-
-			if err = CopyFiles(sourceFilePath, destFilePath); err != nil {
-				return err
-			}
-		} else {
-			sourceFile, err := os.Open(sourceFilePath)
-			if err != nil {
-				return fmt.Errorf("CopyFiles os.Open failed: %w", err)
-			}
-			defer sourceFile.Close()
-
-			destFile, err := os.Create(destFilePath)
-			if err != nil {
-				return fmt.Errorf("CopyFiles os.Create failed: %w", err)
-			}
-			defer destFile.Close()
-
-			if _, err = io.Copy(destFile, sourceFile); err != nil {
-				return fmt.Errorf("io.Copy failed: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func CopyTestFiles(sourceDir, destDir string) {
-	err := CopyFiles(sourceDir, destDir)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func CopyTestKeysAndCerts(destDir string) error {
-	files := []string{
-		"ca.crt", "ca.key", "client.cert", "client.csr",
-		"client.key", "server.cert", "server.csr", "server.key",
-	}
-
-	rootPath, err := GetProjectRootDir()
-	if err != nil {
-		return err
-	}
-
-	sourceDir := filepath.Join(rootPath, "test/data")
-
-	sourceMeta, err := os.Stat(sourceDir)
-	if err != nil {
-		return fmt.Errorf("CopyFiles os.Stat failed: %w", err)
-	}
-
-	if err := os.MkdirAll(destDir, sourceMeta.Mode()); err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		err = CopyFile(filepath.Join(sourceDir, file), filepath.Join(destDir, file))
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 type Controller interface {
@@ -837,21 +745,6 @@ func GetImageWithComponents(config ispec.Image, layers [][]byte) (Image, error) 
 		Config:   config,
 		Layers:   layers,
 	}, nil
-}
-
-func GetCosignSignatureTagForManifest(manifest ispec.Manifest) (string, error) {
-	manifestBlob, err := json.Marshal(manifest)
-	if err != nil {
-		return "", err
-	}
-
-	manifestDigest := godigest.FromBytes(manifestBlob)
-
-	return GetCosignSignatureTagForDigest(manifestDigest), nil
-}
-
-func GetCosignSignatureTagForDigest(manifestDigest godigest.Digest) string {
-	return manifestDigest.Algorithm().String() + "-" + manifestDigest.Encoded() + ".sig"
 }
 
 // Deprecated: Should use the new functions starting with "Create".
@@ -1646,46 +1539,6 @@ func UploadImageWithBasicAuth(img Image, baseURL, repo, ref, user, password stri
 		Put(baseURL + "/v2/" + repo + "/manifests/" + ref)
 
 	return err
-}
-
-func SignImageUsingCosign(repoTag, port string) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = os.Chdir(cwd) }()
-
-	tdir, err := os.MkdirTemp("", "cosign")
-	if err != nil {
-		return err
-	}
-
-	defer os.RemoveAll(tdir)
-
-	_ = os.Chdir(tdir)
-
-	// generate a keypair
-	os.Setenv("COSIGN_PASSWORD", "")
-
-	err = generate.GenerateKeyPairCmd(context.TODO(), "", "cosign", nil)
-	if err != nil {
-		return err
-	}
-
-	imageURL := fmt.Sprintf("localhost:%s/%s", port, repoTag)
-
-	const timeoutPeriod = 5
-
-	// sign the image
-	return sign.SignCmd(&options.RootOptions{Verbose: true, Timeout: timeoutPeriod * time.Minute},
-		options.KeyOpts{KeyRef: path.Join(tdir, "cosign.key"), PassFunc: generate.GetPass},
-		options.SignOptions{
-			Registry:          options.RegistryOptions{AllowInsecure: true},
-			AnnotationOptions: options.AnnotationOptions{Annotations: []string{"tag=1.0"}},
-			Upload:            true,
-		},
-		[]string{imageURL})
 }
 
 func SignImageUsingNotary(repoTag, port string) error {

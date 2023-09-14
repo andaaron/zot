@@ -37,6 +37,7 @@ import (
 	"zotregistry.io/zot/pkg/storage/local"
 	storageTypes "zotregistry.io/zot/pkg/storage/types"
 	"zotregistry.io/zot/pkg/test"
+	"zotregistry.io/zot/pkg/test/cosign"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -2119,7 +2120,7 @@ func TestGarbageCollectForImageStore(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			// add fake signature for tag1
-			cosignTag, err := test.GetCosignSignatureTagForManifest(img.Manifest)
+			cosignTag, err := cosign.GetCosignSignatureTagForManifest(img.Manifest)
 			So(err, ShouldBeNil)
 
 			cosignSig := test.CreateRandomImage()

@@ -4558,7 +4558,7 @@ func TestCrossRepoMount(t *testing.T) {
 
 		// make a new server with dedupe on and same rootDir (can't restart because of metadb - boltdb being open)
 		newDir := t.TempDir()
-		err = test.CopyFiles(dir, newDir)
+		err = testc.CopyFiles(dir, newDir)
 		So(err, ShouldBeNil)
 
 		cm.StopServer()
