@@ -31,6 +31,7 @@ type Scanner interface {
 	ScanImage(image string) (map[string]cvemodel.CVE, error)
 	IsImageFormatScannable(repo, ref string) (bool, error)
 	IsImageMediaScannable(repo, digestStr, mediaType string) (bool, error)
+	IsResultCached(digestStr string) bool
 	UpdateDB() error
 }
 

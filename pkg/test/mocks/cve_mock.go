@@ -76,6 +76,7 @@ func (cveInfo CveInfoMock) UpdateDB() error {
 type CveScannerMock struct {
 	IsImageFormatScannableFn func(repo string, reference string) (bool, error)
 	IsImageMediaScannableFn  func(repo string, digest, mediaType string) (bool, error)
+	IsResultCachedFn         func(digest string) bool
 	ScanImageFn              func(image string) (map[string]cvemodel.CVE, error)
 	UpdateDBFn               func() error
 }
@@ -94,6 +95,14 @@ func (scanner CveScannerMock) IsImageMediaScannable(repo string, digest, mediaTy
 	}
 
 	return true, nil
+}
+
+func (scanner CveScannerMock) IsResultCached(digest string) bool {
+	if scanner.IsResultCachedFn != nil {
+		return scanner.IsResultCachedFn(digest)
+	}
+
+	return false
 }
 
 func (scanner CveScannerMock) ScanImage(image string) (map[string]cvemodel.CVE, error) {

@@ -4,9 +4,7 @@
 package extensions
 
 import (
-	"context"
 	"net/http"
-	"sync"
 	"time"
 
 	gqlHandler "github.com/99designs/gqlgen/graphql/handler"
@@ -24,16 +22,7 @@ import (
 	"zotregistry.io/zot/pkg/storage"
 )
 
-type (
-	CveInfo cveinfo.CveInfo
-	state   int
-)
-
-const (
-	pending state = iota
-	running
-	done
-)
+type CveInfo cveinfo.CveInfo
 
 func IsBuiltWithSearchExtension() bool {
 	return true
@@ -42,7 +31,7 @@ func IsBuiltWithSearchExtension() bool {
 func GetCVEInfo(config *config.Config, storeController storage.StoreController,
 	metaDB mTypes.MetaDB, log log.Logger,
 ) CveInfo {
-	if config.Extensions.Search == nil || !*config.Extensions.Search.Enable || config.Extensions.Search.CVE == nil {
+	if !config.IsCveScanningEnabled() {
 		return nil
 	}
 
@@ -55,7 +44,7 @@ func GetCVEInfo(config *config.Config, storeController storage.StoreController,
 func EnableSearchExtension(config *config.Config, storeController storage.StoreController,
 	metaDB mTypes.MetaDB, taskScheduler *scheduler.Scheduler, cveInfo CveInfo, log log.Logger,
 ) {
-	if config.Extensions.Search != nil && *config.Extensions.Search.Enable && config.Extensions.Search.CVE != nil {
+	if config.IsCveScanningEnabled() {
 		updateInterval := config.Extensions.Search.CVE.UpdateInterval
 
 		downloadTrivyDB(updateInterval, taskScheduler, cveInfo, log)
@@ -65,100 +54,10 @@ func EnableSearchExtension(config *config.Config, storeController storage.StoreC
 }
 
 func downloadTrivyDB(interval time.Duration, sch *scheduler.Scheduler, cveInfo CveInfo, log log.Logger) {
-	generator := NewTrivyTaskGenerator(interval, cveInfo, log)
+	generator := cveinfo.NewDBUpdateTaskGenerator(interval, cveInfo, log)
 
 	log.Info().Msg("Submitting CVE DB update scheduler")
 	sch.SubmitGenerator(generator, interval, scheduler.HighPriority)
-}
-
-func NewTrivyTaskGenerator(interval time.Duration, cveInfo CveInfo, log log.Logger) *TrivyTaskGenerator {
-	generator := &TrivyTaskGenerator{interval, cveInfo, log, pending, 0, time.Now(), &sync.Mutex{}}
-
-	return generator
-}
-
-type TrivyTaskGenerator struct {
-	interval     time.Duration
-	cveInfo      CveInfo
-	log          log.Logger
-	status       state
-	waitTime     time.Duration
-	lastTaskTime time.Time
-	lock         *sync.Mutex
-}
-
-func (gen *TrivyTaskGenerator) Next() (scheduler.Task, error) {
-	var newTask scheduler.Task
-
-	gen.lock.Lock()
-
-	if gen.status == pending && time.Since(gen.lastTaskTime) >= gen.waitTime {
-		newTask = newTrivyTask(gen.interval, gen.cveInfo, gen, gen.log)
-		gen.status = running
-	}
-	gen.lock.Unlock()
-
-	return newTask, nil
-}
-
-func (gen *TrivyTaskGenerator) IsDone() bool {
-	gen.lock.Lock()
-	status := gen.status
-	gen.lock.Unlock()
-
-	return status == done
-}
-
-func (gen *TrivyTaskGenerator) IsReady() bool {
-	return true
-}
-
-func (gen *TrivyTaskGenerator) Reset() {
-	gen.lock.Lock()
-	gen.status = pending
-	gen.waitTime = 0
-	gen.lock.Unlock()
-}
-
-type trivyTask struct {
-	interval  time.Duration
-	cveInfo   cveinfo.CveInfo
-	generator *TrivyTaskGenerator
-	log       log.Logger
-}
-
-func newTrivyTask(interval time.Duration, cveInfo cveinfo.CveInfo,
-	generator *TrivyTaskGenerator, log log.Logger,
-) *trivyTask {
-	return &trivyTask{interval, cveInfo, generator, log}
-}
-
-func (trivyT *trivyTask) DoWork(ctx context.Context) error {
-	trivyT.log.Info().Msg("updating the CVE database")
-
-	err := trivyT.cveInfo.UpdateDB()
-	if err != nil {
-		trivyT.generator.lock.Lock()
-		trivyT.generator.status = pending
-
-		if trivyT.generator.waitTime == 0 {
-			trivyT.generator.waitTime = time.Second
-		}
-
-		trivyT.generator.waitTime *= 2
-		trivyT.generator.lastTaskTime = time.Now()
-		trivyT.generator.lock.Unlock()
-
-		return err
-	}
-
-	trivyT.generator.lock.Lock()
-	trivyT.generator.lastTaskTime = time.Now()
-	trivyT.generator.status = done
-	trivyT.generator.lock.Unlock()
-	trivyT.log.Info().Str("DB update completed, next update scheduled after", trivyT.interval.String()).Msg("")
-
-	return nil
 }
 
 func SetupSearchRoutes(conf *config.Config, router *mux.Router, storeController storage.StoreController,

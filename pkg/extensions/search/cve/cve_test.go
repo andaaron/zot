@@ -751,214 +751,93 @@ func TestCVEStruct(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// Create metadb data for scannable image with vulnerabilities
-		timeStamp11 := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob11, err := json.Marshal(ispec.Image{
-			Created: &timeStamp11,
-		})
-		So(err, ShouldBeNil)
-
-		manifestBlob11, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob11),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerGzip,
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image11 := CreateImageWith().DefaultLayers().
+			ImageConfig(ispec.Image{Created: DateRef(2008, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta11 := mTypes.ManifestMetadata{
-			ManifestBlob:  manifestBlob11,
-			ConfigBlob:    configBlob11,
+			ManifestBlob:  image11.ManifestDescriptor.Data,
+			ConfigBlob:    image11.ConfigDescriptor.Data,
 			DownloadCount: 0,
 			Signatures:    mTypes.ManifestSignatures{},
 		}
 
-		digest11 := godigest.FromBytes(manifestBlob11)
-		err = metaDB.SetManifestMeta("repo1", digest11, repoMeta11)
+		err = metaDB.SetManifestMeta("repo1", image11.ManifestDescriptor.Digest, repoMeta11)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo1", "0.1.0", digest11, ispec.MediaTypeImageManifest)
-		So(err, ShouldBeNil)
-
-		timeStamp12 := time.Date(2009, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob12, err := json.Marshal(ispec.Image{
-			Created: &timeStamp12,
-		})
+		err = metaDB.SetRepoReference("repo1", "0.1.0", image11.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
-		manifestBlob12, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob12),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerGzip,
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image12 := CreateImageWith().DefaultLayers().
+			ImageConfig(ispec.Image{Created: DateRef(2009, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta12 := mTypes.ManifestMetadata{
-			ManifestBlob:  manifestBlob12,
-			ConfigBlob:    configBlob12,
+			ManifestBlob:  image12.ManifestDescriptor.Data,
+			ConfigBlob:    image12.ConfigDescriptor.Data,
 			DownloadCount: 0,
 			Signatures:    mTypes.ManifestSignatures{},
 		}
 
-		digest12 := godigest.FromBytes(manifestBlob12)
-		err = metaDB.SetManifestMeta("repo1", digest12, repoMeta12)
+		err = metaDB.SetManifestMeta("repo1", image12.ManifestDescriptor.Digest, repoMeta12)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo1", "1.0.0", digest12, ispec.MediaTypeImageManifest)
-		So(err, ShouldBeNil)
-
-		timeStamp13 := time.Date(2010, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob13, err := json.Marshal(ispec.Image{
-			Created: &timeStamp13,
-		})
+		err = metaDB.SetRepoReference("repo1", "1.0.0", image12.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
-		manifestBlob13, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob13),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerGzip,
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image13 := CreateImageWith().DefaultLayers().
+			ImageConfig(ispec.Image{Created: DateRef(2010, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta13 := mTypes.ManifestMetadata{
-			ManifestBlob: manifestBlob13,
-			ConfigBlob:   configBlob13,
+			ManifestBlob:  image13.ManifestDescriptor.Data,
+			ConfigBlob:    image13.ConfigDescriptor.Data,
+			DownloadCount: 0,
+			Signatures:    mTypes.ManifestSignatures{},
 		}
 
-		digest13 := godigest.FromBytes(manifestBlob13)
-		err = metaDB.SetManifestMeta("repo1", digest13, repoMeta13)
+		err = metaDB.SetManifestMeta("repo1", image13.ManifestDescriptor.Digest, repoMeta13)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo1", "1.1.0", digest13, ispec.MediaTypeImageManifest)
-		So(err, ShouldBeNil)
-
-		timeStamp14 := time.Date(2011, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob14, err := json.Marshal(ispec.Image{
-			Created: &timeStamp14,
-		})
+		err = metaDB.SetRepoReference("repo1", "1.1.0", image13.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
-		manifestBlob14, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob14),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerGzip,
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image14 := CreateImageWith().DefaultLayers().
+			ImageConfig(ispec.Image{Created: DateRef(2011, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta14 := mTypes.ManifestMetadata{
-			ManifestBlob: manifestBlob14,
-			ConfigBlob:   configBlob14,
+			ManifestBlob: image14.ManifestDescriptor.Data,
+			ConfigBlob:   image14.ConfigDescriptor.Data,
 		}
 
-		digest14 := godigest.FromBytes(manifestBlob14)
-		err = metaDB.SetManifestMeta("repo1", digest14, repoMeta14)
+		err = metaDB.SetManifestMeta("repo1", image14.ManifestDescriptor.Digest, repoMeta14)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo1", "1.0.1", digest14, ispec.MediaTypeImageManifest)
+		err = metaDB.SetRepoReference("repo1", "1.0.1", image14.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
 		// Create metadb data for scannable image with no vulnerabilities
-		timeStamp61 := time.Date(2011, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob61, err := json.Marshal(ispec.Image{
-			Created: &timeStamp61,
-		})
-		So(err, ShouldBeNil)
-
-		manifestBlob61, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob61),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerGzip,
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image61 := CreateImageWith().DefaultLayers().
+			ImageConfig(ispec.Image{Created: DateRef(2011, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta61 := mTypes.ManifestMetadata{
-			ManifestBlob: manifestBlob61,
-			ConfigBlob:   configBlob61,
+			ManifestBlob: image61.ManifestDescriptor.Data,
+			ConfigBlob:   image61.ConfigDescriptor.Data,
 		}
 
-		digest61 := godigest.FromBytes(manifestBlob61)
-		err = metaDB.SetManifestMeta("repo6", digest61, repoMeta61)
+		err = metaDB.SetManifestMeta("repo6", image61.ManifestDescriptor.Digest, repoMeta61)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo6", "1.0.0", digest61, ispec.MediaTypeImageManifest)
+		err = metaDB.SetRepoReference("repo6", "1.0.0", image61.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
 		// Create metadb data for image not supporting scanning
-		timeStamp21 := time.Date(2009, 1, 1, 12, 0, 0, 0, time.UTC)
-
-		configBlob21, err := json.Marshal(ispec.Image{
-			Created: &timeStamp21,
-		})
-		So(err, ShouldBeNil)
-
-		manifestBlob21, err := json.Marshal(ispec.Manifest{
-			Config: ispec.Descriptor{
-				MediaType: ispec.MediaTypeImageConfig,
-				Size:      0,
-				Digest:    godigest.FromBytes(configBlob21),
-			},
-			Layers: []ispec.Descriptor{
-				{
-					MediaType: ispec.MediaTypeImageLayerNonDistributableGzip, //nolint:staticcheck
-					Size:      0,
-					Digest:    godigest.NewDigestFromEncoded(godigest.SHA256, "digest"),
-				},
-			},
-		})
-		So(err, ShouldBeNil)
+		image21 := CreateImageWith().Layers([]Layer{{
+			MediaType: ispec.MediaTypeImageLayerNonDistributableGzip, //nolint:staticcheck
+			Blob:      []byte{10, 10, 10},
+			Digest:    godigest.FromBytes([]byte{10, 10, 10}),
+		}}).ImageConfig(ispec.Image{Created: DateRef(2009, 1, 1, 12, 0, 0, 0, time.UTC)}).Build()
 
 		repoMeta21 := mTypes.ManifestMetadata{
-			ManifestBlob: manifestBlob21,
-			ConfigBlob:   configBlob21,
+			ManifestBlob: image21.ManifestDescriptor.Data,
+			ConfigBlob:   image21.ConfigDescriptor.Data,
 		}
 
-		digest21 := godigest.FromBytes(manifestBlob21)
-		err = metaDB.SetManifestMeta("repo2", digest21, repoMeta21)
+		err = metaDB.SetManifestMeta("repo2", image21.ManifestDescriptor.Digest, repoMeta21)
 		So(err, ShouldBeNil)
-		err = metaDB.SetRepoReference("repo2", "1.0.0", digest21, ispec.MediaTypeImageManifest)
+		err = metaDB.SetRepoReference("repo2", "1.0.0", image21.ManifestDescriptor.Digest, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
 		// Create metadb data for invalid images/negative tests
@@ -992,41 +871,48 @@ func TestCVEStruct(t *testing.T) {
 		err = metaDB.SetRepoReference("repo5", "nonexitent-manifest", digest51, ispec.MediaTypeImageManifest)
 		So(err, ShouldBeNil)
 
-		// ------ Multiarch image
-		_, _, manifestContent1, err := GetRandomImageComponents(100)
-		So(err, ShouldBeNil)
-		manifestContent1Blob, err := json.Marshal(manifestContent1)
-		So(err, ShouldBeNil)
-		diestManifestFromIndex1 := godigest.FromBytes(manifestContent1Blob)
-		err = metaDB.SetManifestData(diestManifestFromIndex1, mTypes.ManifestData{
-			ManifestBlob: manifestContent1Blob,
-			ConfigBlob:   []byte("{}"),
-		})
-		So(err, ShouldBeNil)
+		// create multiarch image with vulnerabilities
+		multiarchImage := CreateRandomMultiarch()
 
-		_, _, manifestContent2, err := GetRandomImageComponents(100)
-		So(err, ShouldBeNil)
-		manifestContent2Blob, err := json.Marshal(manifestContent2)
-		So(err, ShouldBeNil)
-		diestManifestFromIndex2 := godigest.FromBytes(manifestContent2Blob)
-		err = metaDB.SetManifestData(diestManifestFromIndex1, mTypes.ManifestData{
-			ManifestBlob: manifestContent2Blob,
-			ConfigBlob:   []byte("{}"),
-		})
-		So(err, ShouldBeNil)
-
-		indexBlob, err := GetIndexBlobWithManifests(
-			[]godigest.Digest{diestManifestFromIndex1, diestManifestFromIndex2},
+		err = metaDB.SetIndexData(
+			multiarchImage.IndexDescriptor.Digest,
+			mTypes.IndexData{IndexBlob: multiarchImage.IndexDescriptor.Data},
 		)
 		So(err, ShouldBeNil)
 
-		indexDigest := godigest.FromBytes(indexBlob)
-		err = metaDB.SetIndexData(indexDigest, mTypes.IndexData{
-			IndexBlob: indexBlob,
-		})
+		err = metaDB.SetManifestData(
+			multiarchImage.Images[0].ManifestDescriptor.Digest,
+			mTypes.ManifestData{
+				ManifestBlob: multiarchImage.Images[0].ManifestDescriptor.Data,
+				ConfigBlob:   multiarchImage.Images[0].ConfigDescriptor.Data,
+			},
+		)
 		So(err, ShouldBeNil)
 
-		err = metaDB.SetRepoReference("repoIndex", "tagIndex", indexDigest, ispec.MediaTypeImageIndex)
+		err = metaDB.SetManifestData(
+			multiarchImage.Images[1].ManifestDescriptor.Digest,
+			mTypes.ManifestData{
+				ManifestBlob: multiarchImage.Images[1].ManifestDescriptor.Data,
+				ConfigBlob:   multiarchImage.Images[1].ConfigDescriptor.Data,
+			},
+		)
+		So(err, ShouldBeNil)
+
+		err = metaDB.SetManifestData(
+			multiarchImage.Images[2].ManifestDescriptor.Digest,
+			mTypes.ManifestData{
+				ManifestBlob: multiarchImage.Images[2].ManifestDescriptor.Data,
+				ConfigBlob:   multiarchImage.Images[2].ConfigDescriptor.Data,
+			},
+		)
+		So(err, ShouldBeNil)
+
+		err = metaDB.SetRepoReference(
+			"repoIndex",
+			"tagIndex",
+			multiarchImage.IndexDescriptor.Digest,
+			ispec.MediaTypeImageIndex,
+		)
 		So(err, ShouldBeNil)
 
 		// MetaDB loaded with initial data, now mock the scanner
@@ -1034,6 +920,12 @@ func TestCVEStruct(t *testing.T) {
 		scanner := mocks.CveScannerMock{
 			ScanImageFn: func(image string) (map[string]cvemodel.CVE, error) {
 				repo1 := "repo1"
+				digest11 := image11.ManifestDescriptor.Digest
+				digest12 := image12.ManifestDescriptor.Digest
+				digest13 := image13.ManifestDescriptor.Digest
+				digest14 := image14.ManifestDescriptor.Digest
+				digest21 := image21.ManifestDescriptor.Digest
+				indexDigest := multiarchImage.IndexDescriptor.Digest
 
 				repo, ref, _ := zcommon.GetImageDirAndReference(image)
 				// Images in chronological order
@@ -1174,7 +1066,7 @@ func TestCVEStruct(t *testing.T) {
 			},
 			IsImageMediaScannableFn: func(repo, digest, mediaType string) (bool, error) {
 				if repo == "repo2" {
-					if digest == digest21.String() {
+					if digest == image21.ManifestDescriptor.Digest.String() {
 						return false, nil
 					}
 				}
@@ -1403,7 +1295,7 @@ func TestCVEStruct(t *testing.T) {
 		So(len(tagList), ShouldEqual, 0)
 
 		// Repo is not found, assume it is affected by the CVE
-		// But we don't have enough of it's data to actually return it
+		// But we don't have enough of its data to actually return it
 		tagList, err = cveInfo.GetImageListForCVE("repo100", "CVE100")
 		So(err, ShouldEqual, zerr.ErrRepoMetaNotFound)
 		So(len(tagList), ShouldEqual, 0)
