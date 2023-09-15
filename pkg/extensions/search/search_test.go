@@ -220,7 +220,7 @@ func uploadNewRepoTag(tag string, repoName string, baseURL string, layers [][]by
 	return err
 }
 
-func getMockCveInfo(metaDB mTypes.MetaDB, log log.Logger) cveinfo.CveInfo {
+func getMockCveScanner(metaDB mTypes.MetaDB) cveinfo.Scanner {
 	// MetaDB loaded with initial data, mock the scanner
 	// Setup test CVE data in mock scanner
 	scanner := mocks.CveScannerMock{
@@ -357,11 +357,7 @@ func getMockCveInfo(metaDB mTypes.MetaDB, log log.Logger) cveinfo.CveInfo {
 		},
 	}
 
-	return &cveinfo.BaseCveInfo{
-		Log:     log,
-		Scanner: scanner,
-		MetaDB:  metaDB,
-	}
+	return &scanner
 }
 
 func TestRepoListWithNewestImage(t *testing.T) {
@@ -698,7 +694,7 @@ func TestRepoListWithNewestImage(t *testing.T) {
 			panic(err)
 		}
 
-		ctlr.CveInfo = getMockCveInfo(ctlr.MetaDB, ctlr.Log)
+		ctlr.CveScanner = getMockCveScanner(ctlr.MetaDB)
 
 		go func() {
 			if err := ctlr.Run(ctx); !errors.Is(err, http.ErrServerClosed) {
@@ -3396,7 +3392,7 @@ func TestGlobalSearch(t *testing.T) {
 			panic(err)
 		}
 
-		ctlr.CveInfo = getMockCveInfo(ctlr.MetaDB, ctlr.Log)
+		ctlr.CveScanner = getMockCveScanner(ctlr.MetaDB)
 
 		go func() {
 			if err := ctlr.Run(ctx); !errors.Is(err, http.ErrServerClosed) {
@@ -6204,7 +6200,7 @@ func TestImageSummary(t *testing.T) {
 			panic(err)
 		}
 
-		ctlr.CveInfo = getMockCveInfo(ctlr.MetaDB, ctlr.Log)
+		ctlr.CveScanner = getMockCveScanner(ctlr.MetaDB)
 
 		go func() {
 			if err := ctlr.Run(ctx); !errors.Is(err, http.ErrServerClosed) {

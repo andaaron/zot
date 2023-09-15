@@ -14,7 +14,6 @@ type CveInfoMock struct {
 	) (cvemodel.ImageCVESummary, error)
 	GetCVESummaryForImageMediaFn func(repo string, digest, mediaType string,
 	) (cvemodel.ImageCVESummary, error)
-	UpdateDBFn func() error
 }
 
 func (cveInfo CveInfoMock) GetImageListForCVE(repo, cveID string) ([]cvemodel.TagInfo, error) {
@@ -65,17 +64,10 @@ func (cveInfo CveInfoMock) GetCVESummaryForImageMedia(repo, digest, mediaType st
 	return cvemodel.ImageCVESummary{}, nil
 }
 
-func (cveInfo CveInfoMock) UpdateDB() error {
-	if cveInfo.UpdateDBFn != nil {
-		return cveInfo.UpdateDBFn()
-	}
-
-	return nil
-}
-
 type CveScannerMock struct {
 	IsImageFormatScannableFn func(repo string, reference string) (bool, error)
 	IsImageMediaScannableFn  func(repo string, digest, mediaType string) (bool, error)
+	IsResultCachedFn         func(digest string) bool
 	ScanImageFn              func(image string) (map[string]cvemodel.CVE, error)
 	UpdateDBFn               func() error
 }
@@ -94,6 +86,14 @@ func (scanner CveScannerMock) IsImageMediaScannable(repo string, digest, mediaTy
 	}
 
 	return true, nil
+}
+
+func (scanner CveScannerMock) IsResultCached(digest string) bool {
+	if scanner.IsResultCachedFn != nil {
+		return scanner.IsResultCachedFn(digest)
+	}
+
+	return false
 }
 
 func (scanner CveScannerMock) ScanImage(image string) (map[string]cvemodel.CVE, error) {
