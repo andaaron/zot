@@ -61,11 +61,13 @@ import (
 	"zotregistry.io/zot/pkg/storage"
 	storageConstants "zotregistry.io/zot/pkg/storage/constants"
 	"zotregistry.io/zot/pkg/storage/gc"
-	"zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
+	httputils "zotregistry.io/zot/pkg/test/http-utils"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/inject"
 	"zotregistry.io/zot/pkg/test/mocks"
+	notationtest "zotregistry.io/zot/pkg/test/notation"
 )
 
 const (
@@ -300,12 +302,12 @@ func TestCreateMetaDBDriver(t *testing.T) {
 
 func TestRunAlreadyRunningServer(t *testing.T) {
 	Convey("Run server on unavailable port", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		ctlr := makeController(conf, t.TempDir())
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartAndWait(port)
 		defer cm.StopServer()
@@ -330,7 +332,7 @@ func TestAutoPortSelection(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartServer()
 		time.Sleep(1000 * time.Millisecond)
 		defer cm.StopServer()
@@ -373,7 +375,7 @@ func TestObjectStorageController(t *testing.T) {
 	bucket := "zot-storage-test"
 
 	Convey("Negative make a new object storage controller", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 		storageDriverParams := map[string]interface{}{
@@ -389,7 +391,7 @@ func TestObjectStorageController(t *testing.T) {
 	})
 
 	Convey("Make a new object storage controller", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -409,13 +411,13 @@ func TestObjectStorageController(t *testing.T) {
 		ctlr := makeController(conf, "/")
 		So(ctlr, ShouldNotBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 	})
 
 	Convey("Make a new object storage controller with openid", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -446,7 +448,7 @@ func TestObjectStorageController(t *testing.T) {
 			"versiontablename":      "Version",
 		}
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -483,7 +485,7 @@ func TestObjectStorageController(t *testing.T) {
 		ctlr := makeController(conf, "/")
 		So(ctlr, ShouldNotBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 	})
@@ -495,7 +497,7 @@ func TestObjectStorageControllerSubPaths(t *testing.T) {
 	bucket := "zot-storage-test"
 
 	Convey("Make a new object storage controller", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -521,7 +523,7 @@ func TestObjectStorageControllerSubPaths(t *testing.T) {
 		}
 		ctlr.Config.Storage.SubPaths = subPathMap
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 	})
@@ -529,8 +531,8 @@ func TestObjectStorageControllerSubPaths(t *testing.T) {
 
 func TestHtpasswdSingleCred(t *testing.T) {
 	Convey("Single cred", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		singleCredtests := []string{}
 		user := ALICE
 		password := ALICE
@@ -542,7 +544,7 @@ func TestHtpasswdSingleCred(t *testing.T) {
 				conf := config.New()
 				conf.HTTP.Port = port
 
-				htpasswdPath := test.MakeHtpasswdFileFromString(testString)
+				htpasswdPath := testc.MakeHtpasswdFileFromString(testString)
 				defer os.Remove(htpasswdPath)
 				conf.HTTP.Auth = &config.AuthConfig{
 					HTPasswd: config.AuthHTPasswd{
@@ -554,7 +556,7 @@ func TestHtpasswdSingleCred(t *testing.T) {
 
 				ctlr := makeController(conf, t.TempDir())
 
-				cm := test.NewControllerManager(ctlr)
+				cm := testc.NewControllerManager(ctlr)
 				cm.StartAndWait(port)
 				defer cm.StopServer()
 
@@ -584,8 +586,8 @@ func TestHtpasswdSingleCred(t *testing.T) {
 func TestAllowMethodsHeader(t *testing.T) {
 	Convey("Options request", t, func() {
 		dir := t.TempDir()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RootDirectory = dir
@@ -595,7 +597,7 @@ func TestAllowMethodsHeader(t *testing.T) {
 		simpleUserPassword := "simpleUserPass"
 		credTests := fmt.Sprintf("%s\n\n", getCredString(simpleUser, simpleUserPassword))
 
-		htpasswdPath := test.MakeHtpasswdFileFromString(credTests)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(credTests)
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -624,7 +626,7 @@ func TestAllowMethodsHeader(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
@@ -682,11 +684,11 @@ func TestHtpasswdTwoCreds(t *testing.T) {
 
 		for _, testString := range twoCredTests {
 			func() {
-				port := test.GetFreePort()
-				baseURL := test.GetBaseURL(port)
+				port := testc.GetFreePort()
+				baseURL := testc.GetBaseURL(port)
 				conf := config.New()
 				conf.HTTP.Port = port
-				htpasswdPath := test.MakeHtpasswdFileFromString(testString)
+				htpasswdPath := testc.MakeHtpasswdFileFromString(testString)
 				defer os.Remove(htpasswdPath)
 				conf.HTTP.Auth = &config.AuthConfig{
 					HTPasswd: config.AuthHTPasswd{
@@ -694,7 +696,7 @@ func TestHtpasswdTwoCreds(t *testing.T) {
 					},
 				}
 				ctlr := makeController(conf, t.TempDir())
-				cm := test.NewControllerManager(ctlr)
+				cm := testc.NewControllerManager(ctlr)
 				cm.StartAndWait(port)
 				defer cm.StopServer()
 
@@ -731,11 +733,11 @@ func TestHtpasswdFiveCreds(t *testing.T) {
 		}
 
 		func() {
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
-			htpasswdPath := test.MakeHtpasswdFileFromString(credString.String())
+			htpasswdPath := testc.MakeHtpasswdFileFromString(credString.String())
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -744,7 +746,7 @@ func TestHtpasswdFiveCreds(t *testing.T) {
 			}
 			ctlr := makeController(conf, t.TempDir())
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -765,8 +767,8 @@ func TestHtpasswdFiveCreds(t *testing.T) {
 
 func TestRatelimit(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -775,7 +777,7 @@ func TestRatelimit(t *testing.T) {
 			Rate: &rate,
 		}
 		ctlr := makeController(conf, t.TempDir())
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartAndWait(port)
 		defer cm.StopServer()
@@ -796,8 +798,8 @@ func TestRatelimit(t *testing.T) {
 	})
 
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -811,7 +813,7 @@ func TestRatelimit(t *testing.T) {
 		}
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 		Convey("Method Ratelimit", func() {
@@ -830,8 +832,8 @@ func TestRatelimit(t *testing.T) {
 	})
 
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -847,7 +849,7 @@ func TestRatelimit(t *testing.T) {
 		}
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 		Convey("Global and Method Ratelimit", func() {
@@ -868,11 +870,11 @@ func TestRatelimit(t *testing.T) {
 
 func TestBasicAuth(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -882,7 +884,7 @@ func TestBasicAuth(t *testing.T) {
 		}
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -908,14 +910,14 @@ func TestBasicAuth(t *testing.T) {
 
 func TestBlobReferenced(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -963,14 +965,14 @@ func TestBlobReferenced(t *testing.T) {
 
 func TestInterruptedBlobUpload(t *testing.T) {
 	Convey("Successfully cleaning interrupted blob uploads", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1188,11 +1190,11 @@ func TestInterruptedBlobUpload(t *testing.T) {
 
 func TestMultipleInstance(t *testing.T) {
 	Convey("Negative test zot multiple instance", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -1212,7 +1214,7 @@ func TestMultipleInstance(t *testing.T) {
 
 		subPathMap["/a"] = config.StorageConfig{RootDirectory: subDir}
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1225,11 +1227,11 @@ func TestMultipleInstance(t *testing.T) {
 	})
 
 	Convey("Test zot multiple instance", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -1243,7 +1245,7 @@ func TestMultipleInstance(t *testing.T) {
 		subPathMap := make(map[string]config.StorageConfig)
 		subPathMap["/a"] = config.StorageConfig{RootDirectory: subDir}
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1267,11 +1269,11 @@ func TestMultipleInstance(t *testing.T) {
 	})
 
 	Convey("Test zot multiple subpath with same root directory", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -1306,7 +1308,7 @@ func TestMultipleInstance(t *testing.T) {
 
 		ctlr.Config.Storage.SubPaths = subPathMap
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1336,12 +1338,12 @@ func TestTLSWithBasicAuth(t *testing.T) {
 		So(err, ShouldBeNil)
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1359,7 +1361,7 @@ func TestTLSWithBasicAuth(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1395,12 +1397,12 @@ func TestTLSWithBasicAuthAllowReadAccess(t *testing.T) {
 		So(err, ShouldBeNil)
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1426,7 +1428,7 @@ func TestTLSWithBasicAuthAllowReadAccess(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1463,12 +1465,12 @@ func TestMutualTLSAuthWithUserPermissions(t *testing.T) {
 		So(err, ShouldBeNil)
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1496,7 +1498,7 @@ func TestMutualTLSAuthWithUserPermissions(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1557,8 +1559,8 @@ func TestMutualTLSAuthWithoutCN(t *testing.T) {
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 
-		port := test.GetFreePort()
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1586,7 +1588,7 @@ func TestMutualTLSAuthWithoutCN(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1610,9 +1612,9 @@ func TestTLSMutualAuth(t *testing.T) {
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1626,7 +1628,7 @@ func TestTLSMutualAuth(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1676,9 +1678,9 @@ func TestTLSMutualAuthAllowReadAccess(t *testing.T) {
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1700,7 +1702,7 @@ func TestTLSMutualAuthAllowReadAccess(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1756,12 +1758,12 @@ func TestTLSMutualAndBasicAuth(t *testing.T) {
 		So(err, ShouldBeNil)
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1780,7 +1782,7 @@ func TestTLSMutualAndBasicAuth(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -1832,12 +1834,12 @@ func TestTLSMutualAndBasicAuthAllowReadAccess(t *testing.T) {
 		So(err, ShouldBeNil)
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
-		secureBaseURL := test.GetSecureBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
+		secureBaseURL := testc.GetSecureBaseURL(port)
 
 		resty.SetTLSClientConfig(&tls.Config{RootCAs: caCertPool, MinVersion: tls.VersionTLS12})
 		defer func() { resty.SetTLSClientConfig(nil) }()
@@ -1864,7 +1866,7 @@ func TestTLSMutualAndBasicAuthAllowReadAccess(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -2002,14 +2004,14 @@ func (l *testLDAPServer) Search(boundDN string, req vldap.SearchRequest,
 func TestBasicAuthWithLDAP(t *testing.T) {
 	Convey("Make a new controller", t, func() {
 		l := newTestLDAPServer()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		ldapPort, err := strconv.Atoi(port)
 		So(err, ShouldBeNil)
 		l.Start(ldapPort)
 		defer l.Stop()
 
-		port = test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port = testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -2026,7 +2028,7 @@ func TestBasicAuthWithLDAP(t *testing.T) {
 		}
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -2058,14 +2060,14 @@ func TestBasicAuthWithLDAP(t *testing.T) {
 func TestGroupsPermissionsForLDAP(t *testing.T) {
 	Convey("Make a new controller", t, func() {
 		l := newTestLDAPServer()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		ldapPort, err := strconv.Atoi(port)
 		So(err, ShouldBeNil)
 		l.Start(ldapPort)
 		defer l.Stop()
 
-		port = test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port = testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		tempDir := t.TempDir()
 
 		conf := config.New()
@@ -2108,7 +2110,7 @@ func TestGroupsPermissionsForLDAP(t *testing.T) {
 
 		ctlr := makeController(conf, tempDir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -2124,7 +2126,7 @@ func TestGroupsPermissionsForLDAP(t *testing.T) {
 func TestLDAPFailures(t *testing.T) {
 	Convey("Make a LDAP conn", t, func() {
 		l := newTestLDAPServer()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		ldapPort, err := strconv.Atoi(port)
 		So(err, ShouldBeNil)
 		l.Start(ldapPort)
@@ -2159,11 +2161,11 @@ func TestLDAPFailures(t *testing.T) {
 
 func TestBearerAuth(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		authTestServer := test.MakeAuthTestServer(ServerKey, UnauthorizedNamespace)
+		authTestServer := httputils.MakeAuthTestServer(ServerKey, UnauthorizedNamespace)
 		defer authTestServer.Close()
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -2180,7 +2182,7 @@ func TestBearerAuth(t *testing.T) {
 		}
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -2192,7 +2194,7 @@ func TestBearerAuth(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader := test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader := httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2200,7 +2202,7 @@ func TestBearerAuth(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var goodToken test.AccessTokenResponse
+		var goodToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &goodToken)
 		So(err, ShouldBeNil)
 
@@ -2222,7 +2224,7 @@ func TestBearerAuth(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2251,7 +2253,7 @@ func TestBearerAuth(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2280,7 +2282,7 @@ func TestBearerAuth(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2304,7 +2306,7 @@ func TestBearerAuth(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2312,7 +2314,7 @@ func TestBearerAuth(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var badToken test.AccessTokenResponse
+		var badToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &badToken)
 		So(err, ShouldBeNil)
 
@@ -2327,7 +2329,7 @@ func TestBearerAuth(t *testing.T) {
 
 func TestBearerAuthWrongAuthorizer(t *testing.T) {
 	Convey("Make a new authorizer", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -2348,11 +2350,11 @@ func TestBearerAuthWrongAuthorizer(t *testing.T) {
 
 func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		authTestServer := test.MakeAuthTestServer(ServerKey, UnauthorizedNamespace)
+		authTestServer := httputils.MakeAuthTestServer(ServerKey, UnauthorizedNamespace)
 		defer authTestServer.Close()
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -2377,7 +2379,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 			},
 		}
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -2389,7 +2391,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader := test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader := httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2397,7 +2399,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var goodToken test.AccessTokenResponse
+		var goodToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &goodToken)
 		So(err, ShouldBeNil)
 
@@ -2413,7 +2415,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2442,7 +2444,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2471,7 +2473,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2495,7 +2497,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -2503,7 +2505,7 @@ func TestBearerAuthWithAllowReadAccess(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var badToken test.AccessTokenResponse
+		var badToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &badToken)
 		So(err, ShouldBeNil)
 
@@ -2520,7 +2522,7 @@ func TestNewRelyingPartyOIDC(t *testing.T) {
 	Convey("Test NewRelyingPartyOIDC", t, func() {
 		conf := config.New()
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -2590,8 +2592,8 @@ func TestNewRelyingPartyOIDC(t *testing.T) {
 }
 
 func TestOpenIDMiddleware(t *testing.T) {
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	defaultVal := true
 
 	conf := config.New()
@@ -2616,12 +2618,12 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 	// need a username different than ldap one, to test both logic
 	content := fmt.Sprintf("%s:$2y$05$hlbSXDp6hzDLu6VwACS39ORvVRpr3OMR4RlJ31jtlaOEGnPjKZI1m\n", htpasswdUsername)
-	htpasswdPath := test.MakeHtpasswdFileFromString(content)
+	htpasswdPath := testc.MakeHtpasswdFileFromString(content)
 
 	defer os.Remove(htpasswdPath)
 
 	ldapServer := newTestLDAPServer()
-	port = test.GetFreePort()
+	port = testc.GetFreePort()
 
 	ldapPort, err := strconv.Atoi(port)
 	if err != nil {
@@ -2631,7 +2633,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 	ldapServer.Start(ldapPort)
 	defer ldapServer.Stop()
 
-	mockOIDCServer, err := test.MockOIDCRun()
+	mockOIDCServer, err := httputils.MockOIDCRun()
 	if err != nil {
 		panic(err)
 	}
@@ -2701,16 +2703,16 @@ func TestOpenIDMiddleware(t *testing.T) {
 			ctlr.Config.Storage.RootDirectory = dir
 			ctlr.Config.HTTP.ExternalURL = testcase.externalURL
 			ctlr.Config.HTTP.Address = testcase.address
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 
 			cm.StartServer()
 			defer cm.StopServer()
-			test.WaitTillServerReady(baseURL)
+			testc.WaitTillServerReady(baseURL)
 
 			Convey("browser client requests", t, func() {
 				Convey("login with no provider supplied", func() {
 					client := resty.New()
-					client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+					client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 					// first login user
 					resp, err := client.R().
 						SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
@@ -2723,7 +2725,7 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 				Convey("login with openid and get catalog with session", func() {
 					client := resty.New()
-					client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+					client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 					Convey("with callback_ui value provided", func() {
 						// first login user
@@ -2936,13 +2938,13 @@ func TestOpenIDMiddleware(t *testing.T) {
 
 func TestIsOpenIDEnabled(t *testing.T) {
 	Convey("make oidc server", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -2976,11 +2978,11 @@ func TestIsOpenIDEnabled(t *testing.T) {
 
 			ctlr.Config.Storage.RootDirectory = rootDir
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 
 			cm.StartServer()
 			defer cm.StopServer()
-			test.WaitTillServerReady(baseURL)
+			testc.WaitTillServerReady(baseURL)
 
 			resp, err := resty.R().
 				Get(baseURL + "/v2/")
@@ -3009,11 +3011,11 @@ func TestIsOpenIDEnabled(t *testing.T) {
 
 			ctlr.Config.Storage.RootDirectory = rootDir
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 
 			cm.StartServer()
 			defer cm.StopServer()
-			test.WaitTillServerReady(baseURL)
+			testc.WaitTillServerReady(baseURL)
 
 			// it will work because we have an invalid provider, and no other authn enabled, so no authn enabled
 			// normally an invalid provider will exit with error in cli validations
@@ -3028,8 +3030,8 @@ func TestIsOpenIDEnabled(t *testing.T) {
 
 func TestAuthnSessionErrors(t *testing.T) {
 	Convey("make controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		defaultVal := true
 
 		conf := config.New()
@@ -3039,11 +3041,11 @@ func TestAuthnSessionErrors(t *testing.T) {
 		// need a username different than ldap one, to test both logic
 		content := fmt.Sprintf("%s:$2y$05$hlbSXDp6hzDLu6VwACS39ORvVRpr3OMR4RlJ31jtlaOEGnPjKZI1m\n", htpasswdUsername)
 
-		htpasswdPath := test.MakeHtpasswdFileFromString(content)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(content)
 		defer os.Remove(htpasswdPath)
 
 		ldapServer := newTestLDAPServer()
-		port = test.GetFreePort()
+		port = testc.GetFreePort()
 
 		ldapPort, err := strconv.Atoi(port)
 		if err != nil {
@@ -3053,7 +3055,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 		ldapServer.Start(ldapPort)
 		defer ldapServer.Stop()
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -3111,11 +3113,11 @@ func TestAuthnSessionErrors(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = rootDir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartServer()
 		defer cm.StopServer()
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		Convey("trigger basic authn middle(htpasswd) error", func() {
 			client := resty.New()
@@ -3153,7 +3155,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 
 		Convey("trigger updateUserData error", func() {
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			ctlr.MetaDB = mocks.MetaDBMock{
 				SetUserGroupsFn: func(ctx context.Context, groups []string) error {
@@ -3172,7 +3174,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 
 		Convey("trigger session middle metaDB errors", func() {
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			user := mockoidc.DefaultUser()
 			user.Groups = []string{"group1", "group2"}
@@ -3238,7 +3240,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 			mockOIDCServer.QueueUser(user)
 
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			client.SetCookie(&http.Cookie{Name: "session"})
 
@@ -3261,7 +3263,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 			}()
 
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			// first login user
 			resp, err := client.R().
@@ -3303,7 +3305,7 @@ func TestAuthnSessionErrors(t *testing.T) {
 
 		Convey("trigger session middle errors", func() {
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			user := mockoidc.DefaultUser()
 			user.Groups = []string{"group1", "group2"}
@@ -3436,15 +3438,15 @@ func TestAuthnSessionErrors(t *testing.T) {
 
 func TestAuthnMetaDBErrors(t *testing.T) {
 	Convey("make controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -3480,11 +3482,11 @@ func TestAuthnMetaDBErrors(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = rootDir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartServer()
 		defer cm.StopServer()
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		Convey("trigger basic authn middle(htpasswd) error", func() {
 			client := resty.New()
@@ -3505,7 +3507,7 @@ func TestAuthnMetaDBErrors(t *testing.T) {
 
 		Convey("trigger session middle metaDB errors", func() {
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			user := mockoidc.DefaultUser()
 			user.Groups = []string{"group1", "group2"}
@@ -3546,11 +3548,11 @@ func TestAuthnMetaDBErrors(t *testing.T) {
 
 func TestAuthorization(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -3577,7 +3579,7 @@ func TestAuthorization(t *testing.T) {
 		}
 
 		Convey("with openid", func() {
-			mockOIDCServer, err := test.MockOIDCRun()
+			mockOIDCServer, err := httputils.MockOIDCRun()
 			if err != nil {
 				panic(err)
 			}
@@ -3607,17 +3609,17 @@ func TestAuthorization(t *testing.T) {
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-			err = test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
-				test.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
+			err = WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
+				testc.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
 			So(err, ShouldBeNil)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
 			client := resty.New()
 
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			mockOIDCServer.QueueUser(&mockoidc.MockUser{
 				Email:   "test",
@@ -3643,11 +3645,11 @@ func TestAuthorization(t *testing.T) {
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-			err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
-				test.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
+			err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
+				testc.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
 			So(err, ShouldBeNil)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -3661,10 +3663,10 @@ func TestAuthorization(t *testing.T) {
 
 func TestGetUsername(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
-		htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase))
+		htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase))
 		defer os.Remove(htpasswdPath)
 
 		conf := config.New()
@@ -3678,7 +3680,7 @@ func TestGetUsername(t *testing.T) {
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -3719,8 +3721,8 @@ func TestGetUsername(t *testing.T) {
 func TestAuthorizationWithOnlyAnonymousPolicy(t *testing.T) {
 	Convey("Make a new controller", t, func() {
 		const TestRepo = "my-repos/repo"
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -3735,7 +3737,7 @@ func TestAuthorizationWithOnlyAnonymousPolicy(t *testing.T) {
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -3783,7 +3785,7 @@ func TestAuthorizationWithOnlyAnonymousPolicy(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusCreated)
 
-		cblob, cdigest := test.GetRandomImageConfig()
+		cblob, cdigest := GetRandomImageConfig()
 
 		resp, err = resty.R().Post(baseURL + "/v2/" + TestRepo + "/blobs/uploads/")
 		So(err, ShouldBeNil)
@@ -3920,7 +3922,7 @@ func TestAuthorizationWithOnlyAnonymousPolicy(t *testing.T) {
 		err = os.Mkdir(path.Join(dir, "zot-test"), storageConstants.DefaultDirPerms)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "tag", ctlr.StoreController)
+		err = WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "tag", ctlr.StoreController)
 		So(err, ShouldBeNil)
 
 		// should not have read rights on zot-test
@@ -3956,14 +3958,14 @@ func TestAuthorizationWithAnonymousPolicyBasicAuthAndSessionHeader(t *testing.T)
 	Convey("Make a new controller", t, func() {
 		const TestRepo = "my-repos/repo"
 		const AllRepos = "**"
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		badpassphrase := "bad"
 		htpasswdContent := fmt.Sprintf("%s:$2y$05$hlbSXDp6hzDLu6VwACS39ORvVRpr3OMR4RlJ31jtlaOEGnPjKZI1m\n",
 			htpasswdUsername)
 
-		htpasswdPath := test.MakeHtpasswdFileFromString(htpasswdContent)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(htpasswdContent)
 		defer os.Remove(htpasswdPath)
 
 		img := CreateRandomImage()
@@ -3994,7 +3996,7 @@ func TestAuthorizationWithAnonymousPolicyBasicAuthAndSessionHeader(t *testing.T)
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -4160,13 +4162,13 @@ func TestAuthorizationWithAnonymousPolicyBasicAuthAndSessionHeader(t *testing.T)
 
 func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 		// have two users: "test" user for  user Policy, and "bob" for default policy
-		htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase) +
+		htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase) +
 			"\n" + getCredString("bob", passphrase))
 		defer os.Remove(htpasswdPath)
 
@@ -4198,7 +4200,7 @@ func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 		Convey("with openid", func() {
 			dir := t.TempDir()
 
-			mockOIDCServer, err := test.MockOIDCRun()
+			mockOIDCServer, err := httputils.MockOIDCRun()
 			if err != nil {
 				panic(err)
 			}
@@ -4228,17 +4230,17 @@ func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = dir
 
-			err = test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
-				test.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
+			err = WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
+				testc.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
 			So(err, ShouldBeNil)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
 			testUserClient := resty.New()
 
-			testUserClient.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			testUserClient.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			mockOIDCServer.QueueUser(&mockoidc.MockUser{
 				Email:   "test",
@@ -4259,7 +4261,7 @@ func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 
 			bobUserClient := resty.New()
 
-			bobUserClient.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			bobUserClient.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			mockOIDCServer.QueueUser(&mockoidc.MockUser{
 				Email:   "bob",
@@ -4287,11 +4289,11 @@ func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = dir
 
-			err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
-				test.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
+			err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1",
+				testc.GetDefaultStoreController(ctlr.Config.Storage.RootDirectory, ctlr.Log))
 			So(err, ShouldBeNil)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -4308,12 +4310,12 @@ func TestAuthorizationWithMultiplePolicies(t *testing.T) {
 
 func TestInvalidCases(t *testing.T) {
 	Convey("Invalid repo dir", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase))
+		htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase))
 
 		defer os.Remove(htpasswdPath)
 
@@ -4326,7 +4328,7 @@ func TestInvalidCases(t *testing.T) {
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer func(ctrl *api.Controller) {
 			err := os.Chmod(dir, 0o755)
@@ -4375,8 +4377,8 @@ func TestHTTPReadOnly(t *testing.T) {
 		singleCredtests = append(singleCredtests, getCredString(user, password))
 		singleCredtests = append(singleCredtests, getCredString(user, password)+"\n")
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		for _, testString := range singleCredtests {
 			func() {
@@ -4391,7 +4393,7 @@ func TestHTTPReadOnly(t *testing.T) {
 					},
 				}
 
-				htpasswdPath := test.MakeHtpasswdFileFromString(testString)
+				htpasswdPath := testc.MakeHtpasswdFileFromString(testString)
 				defer os.Remove(htpasswdPath)
 				conf.HTTP.Auth = &config.AuthConfig{
 					HTPasswd: config.AuthHTPasswd{
@@ -4400,7 +4402,7 @@ func TestHTTPReadOnly(t *testing.T) {
 				}
 				ctlr := makeController(conf, t.TempDir())
 
-				cm := test.NewControllerManager(ctlr)
+				cm := testc.NewControllerManager(ctlr)
 				cm.StartAndWait(port)
 				defer cm.StopServer()
 
@@ -4427,12 +4429,12 @@ func TestHTTPReadOnly(t *testing.T) {
 
 func TestCrossRepoMount(t *testing.T) {
 	Convey("Cross Repo Mount", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase))
+		htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase))
 
 		defer os.Remove(htpasswdPath)
 
@@ -4450,12 +4452,12 @@ func TestCrossRepoMount(t *testing.T) {
 		ctlr.Config.Storage.Dedupe = false
 
 		image := CreateDefaultImage()
-		err := test.WriteImageToFileSystem(image, "zot-cve-test", "test", storage.StoreController{
-			DefaultStore: test.GetDefaultImageStore(dir, ctlr.Log),
+		err := WriteImageToFileSystem(image, "zot-cve-test", "test", storage.StoreController{
+			DefaultStore: testc.GetDefaultImageStore(dir, ctlr.Log),
 		})
 		So(err, ShouldBeNil)
 
-		cm := test.NewControllerManager(ctlr) //nolint: varnamelen
+		cm := testc.NewControllerManager(ctlr) //nolint: varnamelen
 		cm.StartAndWait(port)
 
 		params := make(map[string]string)
@@ -4558,7 +4560,7 @@ func TestCrossRepoMount(t *testing.T) {
 
 		// make a new server with dedupe on and same rootDir (can't restart because of metadb - boltdb being open)
 		newDir := t.TempDir()
-		err = test.CopyFiles(dir, newDir)
+		err = testc.CopyFiles(dir, newDir)
 		So(err, ShouldBeNil)
 
 		cm.StopServer()
@@ -4566,7 +4568,7 @@ func TestCrossRepoMount(t *testing.T) {
 		ctlr.Config.Storage.Dedupe = true
 		ctlr.Config.Storage.GC = false
 		ctlr.Config.Storage.RootDirectory = newDir
-		cm = test.NewControllerManager(ctlr) //nolint: varnamelen
+		cm = testc.NewControllerManager(ctlr) //nolint: varnamelen
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -4638,12 +4640,12 @@ func TestCrossRepoMount(t *testing.T) {
 	})
 
 	Convey("Disable dedupe and cache", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase))
+		htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase))
 
 		defer os.Remove(htpasswdPath)
 
@@ -4662,11 +4664,11 @@ func TestCrossRepoMount(t *testing.T) {
 
 		image := CreateImageWith().RandomLayers(1, 10).DefaultConfig().Build()
 
-		err := test.WriteImageToFileSystem(image, "zot-cve-test", "0.0.1",
-			test.GetDefaultStoreController(dir, ctlr.Log))
+		err := WriteImageToFileSystem(image, "zot-cve-test", "0.0.1",
+			testc.GetDefaultStoreController(dir, ctlr.Log))
 		So(err, ShouldBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -4779,12 +4781,12 @@ func TestParallelRequests(t *testing.T) {
 		},
 	}
 
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 
 	conf := config.New()
 	conf.HTTP.Port = port
-	htpasswdPath := test.MakeHtpasswdFileFromString(getCredString(username, passphrase))
+	htpasswdPath := testc.MakeHtpasswdFileFromString(getCredString(username, passphrase))
 
 	conf.HTTP.Auth = &config.AuthConfig{
 		HTPasswd: config.AuthHTPasswd{
@@ -4805,15 +4807,15 @@ func TestParallelRequests(t *testing.T) {
 	ctlr.Config.Storage.SubPaths = subPaths
 
 	testImagesDir := t.TempDir()
-	testImagesController := test.GetDefaultStoreController(testImagesDir, ctlr.Log)
+	testImagesController := testc.GetDefaultStoreController(testImagesDir, ctlr.Log)
 
-	err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testImagesController)
+	err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testImagesController)
 	assert.Equal(t, err, nil, "Error should be nil")
 
-	err = test.WriteImageToFileSystem(CreateRandomImage(), "zot-cve-test", "0.0.1", testImagesController)
+	err = WriteImageToFileSystem(CreateRandomImage(), "zot-cve-test", "0.0.1", testImagesController)
 	assert.Equal(t, err, nil, "Error should be nil")
 
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 	cm.StartAndWait(port)
 
 	// without creds, should get access error
@@ -5006,7 +5008,7 @@ func TestParallelRequests(t *testing.T) {
 
 func TestHardLink(t *testing.T) {
 	Convey("Validate hard link", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -5030,7 +5032,7 @@ func TestHardLink(t *testing.T) {
 		subPaths["/a"] = config.StorageConfig{RootDirectory: subDir, Dedupe: true}
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -5051,15 +5053,15 @@ func TestHardLink(t *testing.T) {
 func TestImageSignatures(t *testing.T) {
 	Convey("Validate signatures", t, func() {
 		// start a new server
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		// this blocks
 		cm.StartAndWait(port)
 		defer cm.StopServer()
@@ -5171,26 +5173,26 @@ func TestImageSignatures(t *testing.T) {
 			tdir := t.TempDir()
 			_ = os.Chdir(tdir)
 
-			test.NotationPathLock.Lock()
-			defer test.NotationPathLock.Unlock()
+			notationtest.NotationPathLock.Lock()
+			defer notationtest.NotationPathLock.Unlock()
 
-			test.LoadNotationPath(tdir)
+			notationtest.LoadNotationPath(tdir)
 
-			err = test.GenerateNotationCerts(tdir, "good")
+			err = notationtest.GenerateNotationCerts(tdir, "good")
 			So(err, ShouldBeNil)
 
-			err = test.GenerateNotationCerts(tdir, "bad")
+			err = notationtest.GenerateNotationCerts(tdir, "bad")
 			So(err, ShouldBeNil)
 
 			image := fmt.Sprintf("localhost:%s/%s:%s", port, repoName, "1.0")
-			err = test.SignWithNotation("good", image, tdir)
+			err = notationtest.SignWithNotation("good", image, tdir)
 			So(err, ShouldBeNil)
 
-			err = test.VerifyWithNotation(image, tdir)
+			err = notationtest.VerifyWithNotation(image, tdir)
 			So(err, ShouldBeNil)
 
 			// check list
-			sigs, err := test.ListNotarySignatures(image, tdir)
+			sigs, err := notationtest.ListNotarySignatures(image, tdir)
 			So(len(sigs), ShouldEqual, 1)
 			So(err, ShouldBeNil)
 
@@ -5224,7 +5226,7 @@ func TestImageSignatures(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(resp.StatusCode(), ShouldEqual, http.StatusInternalServerError)
 
-				err = test.VerifyWithNotation(image, tdir)
+				err = notationtest.VerifyWithNotation(image, tdir)
 				So(err, ShouldNotBeNil)
 			})
 
@@ -5246,7 +5248,7 @@ func TestImageSignatures(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
 
-				err = test.VerifyWithNotation(image, tdir)
+				err = notationtest.VerifyWithNotation(image, tdir)
 				So(err, ShouldNotBeNil)
 			})
 		})
@@ -5284,15 +5286,15 @@ func TestImageSignatures(t *testing.T) {
 func TestManifestValidation(t *testing.T) {
 	Convey("Validate manifest", t, func() {
 		// start a new server
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		// this blocks
 		cm.StartServer()
 		time.Sleep(1000 * time.Millisecond)
@@ -5504,15 +5506,15 @@ func TestManifestValidation(t *testing.T) {
 func TestArtifactReferences(t *testing.T) {
 	Convey("Validate Artifact References", t, func() {
 		// start a new server
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		// this blocks
 		cm.StartServer()
 		time.Sleep(1000 * time.Millisecond)
@@ -5523,7 +5525,7 @@ func TestArtifactReferences(t *testing.T) {
 		digest := godigest.FromBytes(content)
 		So(digest, ShouldNotBeNil)
 
-		cfg, layers, manifest, err := test.GetImageComponents(2) //nolint:staticcheck
+		cfg, layers, manifest, err := deprecated.GetImageComponents(2) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = UploadImage(
@@ -5765,15 +5767,15 @@ func TestArtifactReferences(t *testing.T) {
 //nolint:dupl // duplicated test code
 func TestRouteFailures(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		ctlr := makeController(conf, t.TempDir())
 		ctlr.Config.Storage.Commit = true
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -6373,15 +6375,15 @@ func TestRouteFailures(t *testing.T) {
 }
 
 func TestListingTags(t *testing.T) {
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 
 	ctlr := makeController(conf, t.TempDir())
 	ctlr.Config.Storage.Commit = true
 
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 	cm.StartAndWait(port)
 
 	defer cm.StopServer()
@@ -6542,8 +6544,8 @@ func TestListingTags(t *testing.T) {
 
 func TestStorageCommit(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -6551,14 +6553,14 @@ func TestStorageCommit(t *testing.T) {
 		ctlr := makeController(conf, dir)
 		ctlr.Config.Storage.Commit = true
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
 		Convey("Manifests", func() {
 			_, _ = Print("\nManifests")
 
-			cfg, layers, manifest, err := test.GetImageComponents(2) //nolint:staticcheck
+			cfg, layers, manifest, err := deprecated.GetImageComponents(2) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			content := []byte("this is a blob5")
@@ -6613,7 +6615,7 @@ func TestStorageCommit(t *testing.T) {
 				}, baseURL, repoName, "test:1.0.1")
 			So(err, ShouldBeNil)
 
-			cfg, layers, manifest, err = test.GetImageComponents(1) //nolint:staticcheck
+			cfg, layers, manifest, err = deprecated.GetImageComponents(1) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			err = UploadImage(
@@ -6697,21 +6699,21 @@ func TestStorageCommit(t *testing.T) {
 
 func TestManifestImageIndex(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
 		rthdlr := api.NewRouteHandler(ctlr)
 
-		cfg, layers, manifest, err := test.GetImageComponents(2) //nolint:staticcheck
+		cfg, layers, manifest, err := deprecated.GetImageComponents(2) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		content := []byte("this is a blob1")
@@ -7113,8 +7115,8 @@ func TestManifestImageIndex(t *testing.T) {
 
 func TestManifestCollision(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -7134,11 +7136,11 @@ func TestManifestCollision(t *testing.T) {
 			},
 		}
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
-		cfg, layers, manifest, err := test.GetImageComponents(2) //nolint:staticcheck
+		cfg, layers, manifest, err := deprecated.GetImageComponents(2) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = UploadImage(
@@ -7201,15 +7203,15 @@ func TestManifestCollision(t *testing.T) {
 
 func TestPullRange(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -7361,15 +7363,15 @@ func TestPullRange(t *testing.T) {
 
 func TestInjectInterruptedImageManifest(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 		ctlr := makeController(conf, dir)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -7409,7 +7411,7 @@ func TestInjectInterruptedImageManifest(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusAccepted)
 			loc = testc.Location(baseURL, resp)
-			cblob, cdigest := test.GetRandomImageConfig()
+			cblob, cdigest := GetRandomImageConfig()
 
 			resp, err = resty.R().
 				SetContentLength(true).
@@ -7470,8 +7472,8 @@ func TestInjectInterruptedImageManifest(t *testing.T) {
 
 func TestInjectTooManyOpenFiles(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -7479,7 +7481,7 @@ func TestInjectTooManyOpenFiles(t *testing.T) {
 		ctlr := makeController(conf, dir)
 		conf.Storage.RemoteCache = false
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -7542,7 +7544,7 @@ func TestInjectTooManyOpenFiles(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusAccepted)
 		loc = testc.Location(baseURL, resp)
-		cblob, cdigest := test.GetRandomImageConfig()
+		cblob, cdigest := GetRandomImageConfig()
 
 		resp, err = resty.R().
 			SetContentLength(true).
@@ -7670,8 +7672,8 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 			repoName := "testrepo" //nolint:goconst
 			tag := "0.0.1"
 
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
 
@@ -7695,7 +7697,7 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 
 			ctlr.Config.Storage.Dedupe = false
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartServer()
 			cm.WaitServerToBeReady(port)
 			defer cm.StopServer()
@@ -7746,17 +7748,17 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 
 			So(err, ShouldBeNil)
 
-			test.NotationPathLock.Lock()
-			defer test.NotationPathLock.Unlock()
+			notationtest.NotationPathLock.Lock()
+			defer notationtest.NotationPathLock.Unlock()
 
-			test.LoadNotationPath(tdir)
+			notationtest.LoadNotationPath(tdir)
 
 			// generate a keypair
-			err = test.GenerateNotationCerts(tdir, "good")
+			err = notationtest.GenerateNotationCerts(tdir, "good")
 			So(err, ShouldBeNil)
 
 			// sign the image
-			err = test.SignWithNotation("good", image, tdir)
+			err = notationtest.SignWithNotation("good", image, tdir)
 			So(err, ShouldBeNil)
 
 			// get cosign signature manifest
@@ -7831,7 +7833,7 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 
 			Convey("Overwrite original image, signatures should be garbage-collected", func() {
 				// push an image without tag
-				cfg, layers, manifest, err := test.GetImageComponents(2) //nolint:staticcheck
+				cfg, layers, manifest, err := deprecated.GetImageComponents(2) //nolint:staticcheck
 				So(err, ShouldBeNil)
 
 				manifestBuf, err := json.Marshal(manifest)
@@ -7858,7 +7860,7 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 				So(ok, ShouldBeTrue)
 
 				// overwrite image so that signatures will get invalidated and gc'ed
-				cfg, layers, manifest, err = test.GetImageComponents(3) //nolint:staticcheck
+				cfg, layers, manifest, err = deprecated.GetImageComponents(3) //nolint:staticcheck
 				So(err, ShouldBeNil)
 
 				err = UploadImage(
@@ -7925,8 +7927,8 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 			repoName := "testrepo" //nolint:goconst
 			tag := "0.0.1"
 
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
 
@@ -7938,11 +7940,11 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 			ctlr.Config.Storage.GCDelay = 1 * time.Second
 			ctlr.Config.Storage.UntaggedImageRetentionDelay = 1 * time.Second
 
-			err := test.WriteImageToFileSystem(CreateDefaultImage(), repoName, tag,
-				test.GetDefaultStoreController(dir, ctlr.Log))
+			err := WriteImageToFileSystem(CreateDefaultImage(), repoName, tag,
+				testc.GetDefaultStoreController(dir, ctlr.Log))
 			So(err, ShouldBeNil)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -7967,7 +7969,7 @@ func TestGCSignaturesAndUntaggedManifestsWithMetaDB(t *testing.T) {
 
 			// upload multiple manifests
 			for i := 0; i < 4; i++ {
-				config, layers, manifest, err := test.GetImageComponents(1000 + i) //nolint:staticcheck
+				config, layers, manifest, err := deprecated.GetImageComponents(1000 + i) //nolint:staticcheck
 				So(err, ShouldBeNil)
 
 				manifestContent, err := json.Marshal(manifest)
@@ -8026,7 +8028,7 @@ func TestPeriodicGC(t *testing.T) {
 	Convey("Periodic gc enabled for default store", t, func() {
 		repoName := "testrepo" //nolint:goconst
 
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RemoteCache = false
@@ -8044,11 +8046,11 @@ func TestPeriodicGC(t *testing.T) {
 		ctlr.Config.Storage.GCInterval = 1 * time.Hour
 		ctlr.Config.Storage.GCDelay = 1 * time.Second
 
-		err = test.WriteImageToFileSystem(CreateDefaultImage(), repoName, "0.0.1",
-			test.GetDefaultStoreController(dir, ctlr.Log))
+		err = WriteImageToFileSystem(CreateDefaultImage(), repoName, "0.0.1",
+			testc.GetDefaultStoreController(dir, ctlr.Log))
 		So(err, ShouldBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8065,7 +8067,7 @@ func TestPeriodicGC(t *testing.T) {
 	})
 
 	Convey("Periodic GC enabled for substore", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -8087,7 +8089,7 @@ func TestPeriodicGC(t *testing.T) {
 		ctlr.Config.Storage.Dedupe = false
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8104,7 +8106,7 @@ func TestPeriodicGC(t *testing.T) {
 	Convey("Periodic gc error", t, func() {
 		repoName := "testrepo" //nolint:goconst
 
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RemoteCache = false
@@ -8123,8 +8125,8 @@ func TestPeriodicGC(t *testing.T) {
 		ctlr.Config.Storage.GCInterval = 1 * time.Hour
 		ctlr.Config.Storage.GCDelay = 1 * time.Second
 
-		err = test.WriteImageToFileSystem(CreateDefaultImage(), repoName, "0.0.1",
-			test.GetDefaultStoreController(dir, ctlr.Log))
+		err = WriteImageToFileSystem(CreateDefaultImage(), repoName, "0.0.1",
+			testc.GetDefaultStoreController(dir, ctlr.Log))
 		So(err, ShouldBeNil)
 
 		So(os.Chmod(dir, 0o000), ShouldBeNil)
@@ -8133,7 +8135,7 @@ func TestPeriodicGC(t *testing.T) {
 			So(os.Chmod(dir, 0o755), ShouldBeNil)
 		}()
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8149,14 +8151,14 @@ func TestPeriodicGC(t *testing.T) {
 
 func TestSearchRoutes(t *testing.T) {
 	Convey("Upload image for test", t, func(c C) {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		tempDir := t.TempDir()
 
 		ctlr := makeController(conf, tempDir)
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartAndWait(port)
 		defer cm.StopServer()
@@ -8164,7 +8166,7 @@ func TestSearchRoutes(t *testing.T) {
 		repoName := "testrepo" //nolint:goconst
 		inaccessibleRepo := "inaccessible"
 
-		cfg, layers, manifest, err := test.GetImageComponents(10000) //nolint:staticcheck
+		cfg, layers, manifest, err := deprecated.GetImageComponents(10000) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = UploadImage(
@@ -8177,7 +8179,7 @@ func TestSearchRoutes(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// data for the inaccessible repo
-		cfg, layers, manifest, err = test.GetImageComponents(10000) //nolint:staticcheck
+		cfg, layers, manifest, err = deprecated.GetImageComponents(10000) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = UploadImage(
@@ -8191,13 +8193,13 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("GlobalSearch with authz enabled", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test"
 			password1 := "test"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8246,11 +8248,11 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
-			cfg, layers, manifest, err := test.GetImageComponents(10000) //nolint:staticcheck
+			cfg, layers, manifest, err := deprecated.GetImageComponents(10000) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			err = UploadImageWithBasicAuth(
@@ -8263,7 +8265,7 @@ func TestSearchRoutes(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			// data for the inaccessible repo
-			cfg, layers, manifest, err = test.GetImageComponents(10000) //nolint:staticcheck
+			cfg, layers, manifest, err = deprecated.GetImageComponents(10000) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			err = UploadImageWithBasicAuth(
@@ -8339,14 +8341,14 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test1"
 			password1 := "test1"
 			group1 := "testgroup3"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8391,7 +8393,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8421,15 +8423,15 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions when the user is part of more groups with different permissions", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test2"
 			password1 := "test2"
 			group1 := "testgroup1"
 			group2 := "secondtestgroup"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8478,7 +8480,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8490,14 +8492,14 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions when group has less permissions than user", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test3"
 			password1 := "test3"
 			group1 := "testgroup"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8546,7 +8548,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8558,14 +8560,14 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions when user has less permissions than group", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test4"
 			password1 := "test4"
 			group1 := "testgroup1"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8614,7 +8616,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8626,14 +8628,14 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions on admin policy", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			user1 := "test5"
 			password1 := "test5"
 			group1 := "testgroup2"
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8668,7 +8670,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8680,8 +8682,8 @@ func TestSearchRoutes(t *testing.T) {
 
 		Convey("Testing group permissions on anonymous policy", func(c C) {
 			conf := config.New()
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 
 			conf.HTTP.Port = port
 
@@ -8691,7 +8693,7 @@ func TestSearchRoutes(t *testing.T) {
 			password1 := passphrase
 
 			testString1 := getCredString(user1, password1)
-			htpasswdPath := test.MakeHtpasswdFileFromString(testString1)
+			htpasswdPath := testc.MakeHtpasswdFileFromString(testString1)
 			defer os.Remove(htpasswdPath)
 			conf.HTTP.Auth = &config.AuthConfig{
 				HTPasswd: config.AuthHTPasswd{
@@ -8732,7 +8734,7 @@ func TestSearchRoutes(t *testing.T) {
 
 			ctlr := makeController(conf, tempDir)
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -8747,8 +8749,8 @@ func TestSearchRoutes(t *testing.T) {
 func TestDistSpecExtensions(t *testing.T) {
 	Convey("start zot server with search, ui and trust extensions", t, func(c C) {
 		conf := config.New()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf.HTTP.Port = port
 
@@ -8772,7 +8774,7 @@ func TestDistSpecExtensions(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8802,8 +8804,8 @@ func TestDistSpecExtensions(t *testing.T) {
 
 	Convey("start zot server with only the search extension enabled", t, func(c C) {
 		conf := config.New()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf.HTTP.Port = port
 
@@ -8820,7 +8822,7 @@ func TestDistSpecExtensions(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8850,8 +8852,8 @@ func TestDistSpecExtensions(t *testing.T) {
 
 	Convey("start zot server with no enabled extensions", t, func(c C) {
 		conf := config.New()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf.HTTP.Port = port
 
@@ -8862,7 +8864,7 @@ func TestDistSpecExtensions(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8881,8 +8883,8 @@ func TestDistSpecExtensions(t *testing.T) {
 
 	Convey("start minimal zot server", t, func(c C) {
 		conf := config.New()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf.HTTP.Port = port
 
@@ -8893,7 +8895,7 @@ func TestDistSpecExtensions(t *testing.T) {
 
 		ctlr := makeController(conf, t.TempDir())
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -8912,9 +8914,9 @@ func TestDistSpecExtensions(t *testing.T) {
 func TestHTTPOptionsResponse(t *testing.T) {
 	Convey("Test http options response", t, func() {
 		conf := config.New()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf.HTTP.Port = port
-		baseURL := test.GetBaseURL(port)
+		baseURL := testc.GetBaseURL(port)
 
 		ctlr := api.NewController(conf)
 
@@ -8931,7 +8933,7 @@ func TestHTTPOptionsResponse(t *testing.T) {
 		}
 
 		ctlr.Config.Storage.SubPaths = subPaths
-		ctrlManager := test.NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 
 		ctrlManager.StartAndWait(port)
 
@@ -9529,7 +9531,7 @@ func RunAuthorizationTests(t *testing.T, client *resty.Client, baseURL string, c
 		So(resp.StatusCode(), ShouldEqual, http.StatusCreated)
 
 		// create update config and post it.
-		cblob, cdigest := test.GetRandomImageConfig()
+		cblob, cdigest := GetRandomImageConfig()
 
 		resp, err = client.R().
 			Post(baseURL + "/v2/zot-test/blobs/uploads/")

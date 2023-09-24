@@ -21,7 +21,8 @@ import (
 	"zotregistry.io/zot/pkg/extensions"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	syncconf "zotregistry.io/zot/pkg/extensions/config/sync"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	httputils "zotregistry.io/zot/pkg/test/http-utils"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 func TestEnableExtension(t *testing.T) {
 	Convey("Verify log if sync disabled in config", t, func() {
 		globalDir := t.TempDir()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		falseValue := false
 
@@ -53,7 +54,7 @@ func TestEnableExtension(t *testing.T) {
 		defer os.Remove(logFile.Name()) // cleanup
 
 		ctlr := api.NewController(conf)
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 
 		defer ctlrManager.StopServer()
 
@@ -72,7 +73,7 @@ func TestMetricsExtension(t *testing.T) {
 	Convey("Verify Metrics enabled for storage subpaths", t, func() {
 		globalDir := t.TempDir()
 		conf := config.New()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf.HTTP.Port = port
 
 		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
@@ -89,7 +90,7 @@ func TestMetricsExtension(t *testing.T) {
 		defer os.Remove(logFile.Name()) // cleanup
 
 		ctlr := api.NewController(conf)
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 
 		subPaths := make(map[string]config.StorageConfig)
 		subPaths["/a"] = config.StorageConfig{
@@ -112,9 +113,9 @@ func TestMetricsExtension(t *testing.T) {
 func TestMgmtExtension(t *testing.T) {
 	globalDir := t.TempDir()
 	conf := config.New()
-	port := test.GetFreePort()
+	port := testc.GetFreePort()
 	conf.HTTP.Port = port
-	baseURL := test.GetBaseURL(port)
+	baseURL := testc.GetBaseURL(port)
 
 	logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
 	if err != nil {
@@ -124,7 +125,7 @@ func TestMgmtExtension(t *testing.T) {
 
 	defaultValue := true
 
-	mockOIDCServer, err := test.MockOIDCRun()
+	mockOIDCServer, err := httputils.MockOIDCRun()
 	if err != nil {
 		panic(err)
 	}
@@ -139,7 +140,7 @@ func TestMgmtExtension(t *testing.T) {
 	mockOIDCConfig := mockOIDCServer.Config()
 
 	Convey("Verify mgmt auth info route enabled with htpasswd", t, func() {
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 
 		conf.Extensions = &extconf.ExtensionConfig{}
@@ -160,11 +161,11 @@ func TestMgmtExtension(t *testing.T) {
 		ctlr.Config.Storage.RootDirectory = globalDir
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		So(err, ShouldBeNil)
 		defer func() {
@@ -177,7 +178,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -244,11 +245,11 @@ func TestMgmtExtension(t *testing.T) {
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -260,7 +261,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -280,7 +281,7 @@ func TestMgmtExtension(t *testing.T) {
 	})
 
 	Convey("Verify mgmt auth info route enabled with htpasswd + ldap", t, func() {
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
 			BindDN:  "binddn",
@@ -306,11 +307,11 @@ func TestMgmtExtension(t *testing.T) {
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -322,7 +323,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -355,7 +356,7 @@ func TestMgmtExtension(t *testing.T) {
 	})
 
 	Convey("Verify mgmt auth info route enabled with htpasswd + ldap + bearer", t, func() {
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 		conf.HTTP.Auth.LDAP = &config.LDAPConfig{
 			BindDN:  "binddn",
@@ -382,11 +383,11 @@ func TestMgmtExtension(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -398,7 +399,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -465,11 +466,11 @@ func TestMgmtExtension(t *testing.T) {
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 		ctlr.Config.Storage.SubPaths = subPaths
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -481,7 +482,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -524,11 +525,11 @@ func TestMgmtExtension(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -540,7 +541,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -590,11 +591,11 @@ func TestMgmtExtension(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -606,7 +607,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -628,7 +629,7 @@ func TestMgmtExtension(t *testing.T) {
 	})
 
 	Convey("Verify mgmt auth info route enabled with empty openID provider list", t, func() {
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 
 		conf.HTTP.Auth.HTPasswd.Path = htpasswdPath
 		conf.HTTP.Auth.LDAP = nil
@@ -654,11 +655,11 @@ func TestMgmtExtension(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -670,7 +671,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -693,9 +694,9 @@ func TestMgmtExtension(t *testing.T) {
 	Convey("Verify mgmt auth info route enabled without any auth", t, func() {
 		globalDir := t.TempDir()
 		conf := config.New()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf.HTTP.Port = port
-		baseURL := test.GetBaseURL(port)
+		baseURL := testc.GetBaseURL(port)
 
 		logFile, err := os.CreateTemp(globalDir, "zot-log*.txt")
 		So(err, ShouldBeNil)
@@ -717,7 +718,7 @@ func TestMgmtExtension(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
@@ -733,7 +734,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(mgmtResp.HTTP.Auth.HTPasswd, ShouldBeNil)
 		So(mgmtResp.HTTP.Auth.LDAP, ShouldBeNil)
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"setting up mgmt routes", mgmtReadyTimeout)
 		defer func() {
 			if !found {
@@ -745,7 +746,7 @@ func TestMgmtExtension(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"finished setting up mgmt routes", mgmtReadyTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
@@ -756,11 +757,11 @@ func TestMgmtWithBearer(t *testing.T) {
 	Convey("Make a new controller", t, func() {
 		authorizedNamespace := "allowedrepo"
 		unauthorizedNamespace := "notallowedrepo"
-		authTestServer := test.MakeAuthTestServer(ServerKey, unauthorizedNamespace)
+		authTestServer := httputils.MakeAuthTestServer(ServerKey, unauthorizedNamespace)
 		defer authTestServer.Close()
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -789,7 +790,7 @@ func TestMgmtWithBearer(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -798,7 +799,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader := test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader := httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -806,7 +807,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var goodToken test.AccessTokenResponse
+		var goodToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &goodToken)
 		So(err, ShouldBeNil)
 
@@ -828,7 +829,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -852,7 +853,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusUnauthorized)
 
-		authorizationHeader = test.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
+		authorizationHeader = httputils.ParseBearerAuthHeader(resp.Header().Get("Www-Authenticate"))
 		resp, err = resty.R().
 			SetQueryParam("service", authorizationHeader.Service).
 			SetQueryParam("scope", authorizationHeader.Scope).
@@ -860,7 +861,7 @@ func TestMgmtWithBearer(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
-		var badToken test.AccessTokenResponse
+		var badToken httputils.AccessTokenResponse
 		err = json.Unmarshal(resp.Body(), &badToken)
 		So(err, ShouldBeNil)
 
@@ -907,7 +908,7 @@ func TestAllowedMethodsHeaderMgmt(t *testing.T) {
 
 	Convey("Test http options response", t, func() {
 		conf := config.New()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf.HTTP.Port = port
 		conf.Extensions = &extconf.ExtensionConfig{}
 		conf.Extensions.Search = &extconf.SearchConfig{}
@@ -916,12 +917,12 @@ func TestAllowedMethodsHeaderMgmt(t *testing.T) {
 		conf.Extensions.UI = &extconf.UIConfig{}
 		conf.Extensions.UI.Enable = &defaultVal
 
-		baseURL := test.GetBaseURL(port)
+		baseURL := testc.GetBaseURL(port)
 
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctrlManager := test.NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 
 		ctrlManager.StartAndWait(port)
 		defer ctrlManager.StopServer()

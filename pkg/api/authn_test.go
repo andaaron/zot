@@ -26,7 +26,8 @@ import (
 	"zotregistry.io/zot/pkg/log"
 	mTypes "zotregistry.io/zot/pkg/meta/types"
 	reqCtx "zotregistry.io/zot/pkg/requestcontext"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	httputils "zotregistry.io/zot/pkg/test/http-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -50,15 +51,15 @@ func TestAllowedMethodsHeaderAPIKey(t *testing.T) {
 
 	Convey("Test http options response", t, func() {
 		conf := config.New()
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf.HTTP.Port = port
 		conf.HTTP.Auth.APIKey = defaultVal
-		baseURL := test.GetBaseURL(port)
+		baseURL := testc.GetBaseURL(port)
 
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-		ctrlManager := test.NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 
 		ctrlManager.StartAndWait(port)
 		defer ctrlManager.StopServer()
@@ -72,16 +73,16 @@ func TestAllowedMethodsHeaderAPIKey(t *testing.T) {
 
 func TestAPIKeys(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
 
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -128,11 +129,11 @@ func TestAPIKeys(t *testing.T) {
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartServer()
 		defer cm.StopServer()
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		payload := api.APIKeyPayload{
 			Label:  "test",
@@ -219,7 +220,7 @@ func TestAPIKeys(t *testing.T) {
 
 		Convey("API key retrieved with openID and with no expire", func() {
 			client := resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			// first login user
 			resp, err := client.R().
@@ -362,7 +363,7 @@ func TestAPIKeys(t *testing.T) {
 			So(resp, ShouldNotBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 			// first login user
 			resp, err = client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
@@ -420,7 +421,7 @@ func TestAPIKeys(t *testing.T) {
 			// auth with API key
 			// we need new client without session cookie set
 			client = resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			resp, err = client.R().
 				SetBasicAuth(email, apiKeyResponse.APIKey).
@@ -485,7 +486,7 @@ func TestAPIKeys(t *testing.T) {
 			So(resp.StatusCode(), ShouldEqual, http.StatusInternalServerError)
 
 			client = resty.New()
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 
 			// without creds should work
 			resp, err = client.R().Get(baseURL + constants.FullMgmt)
@@ -627,7 +628,7 @@ func TestAPIKeys(t *testing.T) {
 
 			client := resty.New()
 
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 			// first login user
 			resp, err := client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
@@ -756,7 +757,7 @@ func TestAPIKeys(t *testing.T) {
 
 			client := resty.New()
 
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 			// first login user
 			resp, err := client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
@@ -791,7 +792,7 @@ func TestAPIKeys(t *testing.T) {
 
 			client := resty.New()
 
-			client.SetRedirectPolicy(test.CustomRedirectPolicy(20))
+			client.SetRedirectPolicy(testc.CustomRedirectPolicy(20))
 			// first login user
 			resp, err := client.R().
 				SetHeader(constants.SessionClientHeaderName, constants.SessionClientHeaderValue).
@@ -831,10 +832,10 @@ func TestAPIKeys(t *testing.T) {
 func TestAPIKeysOpenDBError(t *testing.T) {
 	Convey("Test API keys - unable to create database", t, func() {
 		conf := config.New()
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
-		mockOIDCServer, err := test.MockOIDCRun()
+		mockOIDCServer, err := httputils.MockOIDCRun()
 		if err != nil {
 			panic(err)
 		}
@@ -876,7 +877,7 @@ func TestAPIKeysOpenDBError(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		So(func() {
 			cm.StartServer()

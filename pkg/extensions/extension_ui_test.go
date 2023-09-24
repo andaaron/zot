@@ -16,15 +16,16 @@ import (
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/config"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 )
 
 func TestUIExtension(t *testing.T) {
 	Convey("Verify zot with UI extension starts successfully", t, func() {
 		conf := config.New()
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf.HTTP.Port = port
 
 		// we won't use the logging config feature as we want logs in both
@@ -47,18 +48,18 @@ func TestUIExtension(t *testing.T) {
 		ctlr := api.NewController(conf)
 		ctlr.Log.Logger = ctlr.Log.Output(writers)
 
-		ctlrManager := test.NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 
-		found, err := test.ReadLogFileAndSearchString(logPath, "\"UI\":{\"Enable\":true}", 2*time.Minute)
+		found, err := testc.ReadLogFileAndSearchString(logPath, "\"UI\":{\"Enable\":true}", 2*time.Minute)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = test.ReadLogFileAndSearchString(logPath, "setting up ui routes", 2*time.Minute)
+		found, err = testc.ReadLogFileAndSearchString(logPath, "setting up ui routes", 2*time.Minute)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		cfg, layers, manifest, err := test.GetImageComponents(1) //nolint:staticcheck
+		cfg, layers, manifest, err := deprecated.GetImageComponents(1) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		repoName := "test-repo"

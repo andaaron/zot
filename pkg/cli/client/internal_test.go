@@ -19,7 +19,7 @@ import (
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
 	extConf "zotregistry.io/zot/pkg/extensions/config"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 const (
@@ -53,7 +53,7 @@ func TestTLSWithAuth(t *testing.T) {
 		defer func() { resty.SetTLSClientConfig(nil) }()
 		conf := config.New()
 		conf.HTTP.Port = SecurePort1
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -75,7 +75,7 @@ func TestTLSWithAuth(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -85,7 +85,7 @@ func TestTLSWithAuth(t *testing.T) {
 
 			home := os.Getenv("HOME")
 			destCertsDir := filepath.Join(home, certsDir1)
-			err := test.CopyTestKeysAndCerts(destCertsDir)
+			err := testc.CopyTestKeysAndCerts(destCertsDir)
 			So(err, ShouldBeNil)
 
 			defer os.RemoveAll(destCertsDir)
@@ -155,7 +155,7 @@ func TestTLSWithoutAuth(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -167,7 +167,10 @@ func TestTLSWithoutAuth(t *testing.T) {
 
 			home := os.Getenv("HOME")
 			destCertsDir := filepath.Join(home, certsDir1)
-			test.CopyTestFiles(sourceCertsDir, destCertsDir)
+
+			err := testc.CopyFiles(sourceCertsDir, destCertsDir)
+			So(err, ShouldBeNil)
+
 			defer os.RemoveAll(destCertsDir)
 
 			args := []string{"list", "--config", "imagetest"}
@@ -176,7 +179,7 @@ func TestTLSWithoutAuth(t *testing.T) {
 			imageCmd.SetOut(imageBuff)
 			imageCmd.SetErr(imageBuff)
 			imageCmd.SetArgs(args)
-			err := imageCmd.Execute()
+			err = imageCmd.Execute()
 			So(err, ShouldBeNil)
 		})
 	})
@@ -201,7 +204,7 @@ func TestTLSBadCerts(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 

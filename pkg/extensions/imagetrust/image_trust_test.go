@@ -37,9 +37,11 @@ import (
 	zcommon "zotregistry.io/zot/pkg/common"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	"zotregistry.io/zot/pkg/extensions/imagetrust"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
+	notationtest "zotregistry.io/zot/pkg/test/notation"
 )
 
 var (
@@ -99,13 +101,13 @@ func TestInitCosignAndNotationDirs(t *testing.T) {
 	Convey("UploadCertificate - notationDir is not set", t, func() {
 		rootDir := t.TempDir()
 
-		test.NotationPathLock.Lock()
-		defer test.NotationPathLock.Unlock()
+		notationtest.NotationPathLock.Lock()
+		defer notationtest.NotationPathLock.Unlock()
 
-		test.LoadNotationPath(rootDir)
+		notationtest.LoadNotationPath(rootDir)
 
 		// generate a keypair
-		err := test.GenerateNotationCerts(rootDir, "notation-upload-test")
+		err := notationtest.GenerateNotationCerts(rootDir, "notation-upload-test")
 		So(err, ShouldBeNil)
 
 		certificateContent, err := os.ReadFile(path.Join(rootDir, "notation/localkeys", "notation-upload-test.crt"))
@@ -154,7 +156,7 @@ func TestVerifySignatures(t *testing.T) {
 	})
 
 	Convey("empty manifest digest", t, func() {
-		image, err := test.GetRandomImage() //nolint:staticcheck
+		image, err := deprecated.GetRandomImage() //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		manifestContent, err := json.Marshal(image.Manifest)
@@ -167,7 +169,7 @@ func TestVerifySignatures(t *testing.T) {
 	})
 
 	Convey("wrong signature type", t, func() {
-		image, err := test.GetRandomImage() //nolint:staticcheck
+		image, err := deprecated.GetRandomImage() //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		manifestContent, err := json.Marshal(image.Manifest)
@@ -182,9 +184,9 @@ func TestVerifySignatures(t *testing.T) {
 	})
 
 	Convey("verify cosign signature", t, func() {
-		repo := "repo"                      //nolint:goconst
-		tag := "test"                       //nolint:goconst
-		image, err := test.GetRandomImage() //nolint:staticcheck
+		repo := "repo"                            //nolint:goconst
+		tag := "test"                             //nolint:goconst
+		image, err := deprecated.GetRandomImage() //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		manifestContent, err := json.Marshal(image.Manifest)
@@ -230,7 +232,7 @@ func TestVerifySignatures(t *testing.T) {
 			cosignDir, err := pubKeyStorage.GetCosignDirPath()
 			So(err, ShouldBeNil)
 
-			err = test.WriteFileWithPermission(path.Join(cosignDir, "file"), []byte("not a public key"), 0o600, false)
+			err = testc.WriteFileWithPermission(path.Join(cosignDir, "file"), []byte("not a public key"), 0o600, false)
 			So(err, ShouldBeNil)
 
 			imgTrustStore := &imagetrust.ImageTrustStore{
@@ -246,15 +248,15 @@ func TestVerifySignatures(t *testing.T) {
 		Convey("signature is trusted", func() {
 			rootDir := t.TempDir()
 
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
 			conf.Storage.GC = false
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = rootDir
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(conf.HTTP.Port)
 			defer cm.StopServer()
 
@@ -334,9 +336,9 @@ func TestVerifySignatures(t *testing.T) {
 	})
 
 	Convey("verify notation signature", t, func() {
-		repo := "repo"                      //nolint:goconst
-		tag := "test"                       //nolint:goconst
-		image, err := test.GetRandomImage() //nolint:staticcheck
+		repo := "repo"                            //nolint:goconst
+		tag := "test"                             //nolint:goconst
+		image, err := deprecated.GetRandomImage() //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		manifestContent, err := json.Marshal(image.Manifest)
@@ -400,7 +402,7 @@ func TestVerifySignatures(t *testing.T) {
 			notationDir, err := certStorage.GetNotationDirPath()
 			So(err, ShouldBeNil)
 
-			err = test.WriteFileWithPermission(path.Join(notationDir, "trustpolicy.json"), []byte("invalid content"),
+			err = testc.WriteFileWithPermission(path.Join(notationDir, "trustpolicy.json"), []byte("invalid content"),
 				0o600, true)
 			So(err, ShouldBeNil)
 
@@ -416,15 +418,15 @@ func TestVerifySignatures(t *testing.T) {
 		Convey("signature is trusted", func() {
 			rootDir := t.TempDir()
 
-			port := test.GetFreePort()
-			baseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			baseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
 			conf.Storage.GC = false
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = rootDir
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(conf.HTTP.Port)
 			defer cm.StopServer()
 
@@ -437,22 +439,22 @@ func TestVerifySignatures(t *testing.T) {
 			notationDir, err := certStorage.GetNotationDirPath()
 			So(err, ShouldBeNil)
 
-			test.NotationPathLock.Lock()
-			defer test.NotationPathLock.Unlock()
+			notationtest.NotationPathLock.Lock()
+			defer notationtest.NotationPathLock.Unlock()
 
-			test.LoadNotationPath(notationDir)
+			notationtest.LoadNotationPath(notationDir)
 
 			// generate a keypair
-			err = test.GenerateNotationCerts(notationDir, "notation-sign-test")
+			err = notationtest.GenerateNotationCerts(notationDir, "notation-sign-test")
 			So(err, ShouldBeNil)
 
 			// sign the image
 			image := fmt.Sprintf("localhost:%s/%s", port, fmt.Sprintf("%s:%s", repo, tag))
 
-			err = test.SignWithNotation("notation-sign-test", image, notationDir)
+			err = notationtest.SignWithNotation("notation-sign-test", image, notationDir)
 			So(err, ShouldBeNil)
 
-			err = test.CopyFiles(path.Join(notationDir, "notation", "truststore"), path.Join(notationDir, "truststore"))
+			err = testc.CopyFiles(path.Join(notationDir, "notation", "truststore"), path.Join(notationDir, "truststore"))
 			So(err, ShouldBeNil)
 
 			err = os.RemoveAll(path.Join(notationDir, "notation"))
@@ -476,7 +478,7 @@ func TestVerifySignatures(t *testing.T) {
 				]
 			}`
 
-			err = test.WriteFileWithPermission(path.Join(notationDir, "trustpolicy.json"), []byte(trustPolicy), 0o600, true)
+			err = testc.WriteFileWithPermission(path.Join(notationDir, "trustpolicy.json"), []byte(trustPolicy), 0o600, true)
 			So(err, ShouldBeNil)
 
 			indexContent, err := ctlr.StoreController.DefaultStore.GetIndexContent(repo)
@@ -559,13 +561,13 @@ func TestLocalTrustStoreUploadErr(t *testing.T) {
 	Convey("certificate can't be stored", t, func() {
 		rootDir := t.TempDir()
 
-		test.NotationPathLock.Lock()
-		defer test.NotationPathLock.Unlock()
+		notationtest.NotationPathLock.Lock()
+		defer notationtest.NotationPathLock.Unlock()
 
-		test.LoadNotationPath(rootDir)
+		notationtest.LoadNotationPath(rootDir)
 
 		// generate a keypair
-		err := test.GenerateNotationCerts(rootDir, "notation-upload-test")
+		err := notationtest.GenerateNotationCerts(rootDir, "notation-upload-test")
 		So(err, ShouldBeNil)
 
 		certificateContent, err := os.ReadFile(path.Join(rootDir, "notation/localkeys", "notation-upload-test.crt"))
@@ -1123,13 +1125,13 @@ func RunUploadTests(t *testing.T, imageTrustStore imagetrust.ImageTrustStore) { 
 	Convey("upload certificate successfully", func() {
 		certDir := t.TempDir()
 
-		test.NotationPathLock.Lock()
-		defer test.NotationPathLock.Unlock()
+		notationtest.NotationPathLock.Lock()
+		defer notationtest.NotationPathLock.Unlock()
 
-		test.LoadNotationPath(certDir)
+		notationtest.LoadNotationPath(certDir)
 
 		// generate a keypair
-		err := test.GenerateNotationCerts(certDir, "notation-upload-test")
+		err := notationtest.GenerateNotationCerts(certDir, "notation-upload-test")
 		So(err, ShouldBeNil)
 
 		certificateContent, err := os.ReadFile(path.Join(certDir, "notation/localkeys", "notation-upload-test.crt"))
@@ -1152,8 +1154,8 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 
 		writers := io.MultiWriter(os.Stdout, logFile)
 
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.GC = false
@@ -1173,7 +1175,7 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 		ctlr.Log.Logger = ctlr.Log.Output(writers)
 		ctlr.Config.Storage.RootDirectory = rootDir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -1181,7 +1183,7 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 		tag := "test"  //nolint:goconst
 
 		Convey("verify cosign signature is trusted", func() {
-			image, err := test.GetRandomImage() //nolint:staticcheck
+			image, err := deprecated.GetRandomImage() //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			manifestContent, err := json.Marshal(image.Manifest)
@@ -1265,7 +1267,7 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 		})
 
 		Convey("verify notation signature is trusted", func() {
-			image, err := test.GetRandomImage() //nolint:staticcheck
+			image, err := deprecated.GetRandomImage() //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			manifestContent, err := json.Marshal(image.Manifest)
@@ -1278,10 +1280,10 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 
 			notationDir := t.TempDir()
 
-			test.NotationPathLock.Lock()
-			defer test.NotationPathLock.Unlock()
+			notationtest.NotationPathLock.Lock()
+			defer notationtest.NotationPathLock.Unlock()
 
-			test.LoadNotationPath(notationDir)
+			notationtest.LoadNotationPath(notationDir)
 
 			uuid, err := guuid.NewV4()
 			So(err, ShouldBeNil)
@@ -1289,13 +1291,13 @@ func RunVerificationTests(t *testing.T, dbDriverParams map[string]interface{}) {
 			certName := fmt.Sprintf("notation-sign-test-%s", uuid)
 
 			// generate a keypair
-			err = test.GenerateNotationCerts(notationDir, certName)
+			err = notationtest.GenerateNotationCerts(notationDir, certName)
 			So(err, ShouldBeNil)
 
 			// sign the image
 			imageURL := fmt.Sprintf("localhost:%s/%s", port, fmt.Sprintf("%s:%s", repo, tag))
 
-			err = test.SignWithNotation(certName, imageURL, notationDir)
+			err = notationtest.SignWithNotation(certName, imageURL, notationDir)
 			So(err, ShouldBeNil)
 
 			indexContent, err := ctlr.StoreController.DefaultStore.GetIndexContent(repo)

@@ -24,9 +24,11 @@ import (
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
-	. "zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	deprecated "zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
+	notation "zotregistry.io/zot/pkg/test/notation"
 	ocilayout "zotregistry.io/zot/pkg/test/oci-layout"
 )
 
@@ -290,8 +292,8 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 		// checkNotarySignature -> true
 		dir := t.TempDir()
 
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RootDirectory = dir
@@ -304,12 +306,12 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
 		// push test image to repo
-		config, layers, manifest, err := GetImageComponents(100) //nolint:staticcheck
+		config, layers, manifest, err := deprecated.GetImageComponents(100) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		layersSize1 := 0
@@ -336,7 +338,7 @@ func TestBaseOciLayoutUtils(t *testing.T) {
 		isSigned := olu.CheckManifestSignature(repo, manifestList[0].Digest)
 		So(isSigned, ShouldBeFalse)
 
-		err = SignImageUsingNotary(fmt.Sprintf("%s:%s", repo, tag), port)
+		err = notation.SignImageUsingNotary(fmt.Sprintf("%s:%s", repo, tag), port)
 		So(err, ShouldBeNil)
 
 		isSigned = olu.CheckManifestSignature(repo, manifestList[0].Digest)
@@ -356,7 +358,7 @@ func TestExtractImageDetails(t *testing.T) {
 		}
 
 		num := 10
-		config, layers, manifest, err := GetImageComponents(num) //nolint:staticcheck
+		config, layers, manifest, err := deprecated.GetImageComponents(num) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = WriteImageToFileSystem(
@@ -412,7 +414,7 @@ func TestExtractImageDetails(t *testing.T) {
 		}
 
 		num := 10
-		config, layers, manifest, err := GetImageComponents(num) //nolint:staticcheck
+		config, layers, manifest, err := deprecated.GetImageComponents(num) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = WriteImageToFileSystem(

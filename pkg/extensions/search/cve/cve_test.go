@@ -38,7 +38,8 @@ import (
 	mTypes "zotregistry.io/zot/pkg/meta/types"
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
-	. "zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
@@ -88,7 +89,7 @@ func testSetup(t *testing.T) (string, error) {
 		return "", err
 	}
 
-	testStorageCtrl := GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+	testStorageCtrl := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
 
 	err = WriteImageToFileSystem(CreateRandomVulnerableImage(), "zot-test", "0.0.1", testStorageCtrl)
 	if err != nil {
@@ -416,11 +417,11 @@ func TestImageFormat(t *testing.T) {
 
 func TestCVESearchDisabled(t *testing.T) {
 	Convey("Test with CVE search disabled", t, func() {
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -452,12 +453,12 @@ func TestCVESearchDisabled(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		ctlr.Log.Logger = ctlr.Log.Output(writers)
-		ctrlManager := NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 
 		ctrlManager.StartAndWait(port)
 
 		// Wait for trivy db to download
-		found, err := ReadLogFileAndSearchString(logPath, "CVE config not provided, skipping CVE update", 90*time.Second)
+		found, err := testc.ReadLogFileAndSearchString(logPath, "CVE config not provided, skipping CVE update", 90*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 
@@ -481,11 +482,11 @@ func TestCVESearchDisabled(t *testing.T) {
 func TestCVESearch(t *testing.T) {
 	Convey("Test image vulnerability scanning", t, func() {
 		updateDuration, _ := time.ParseDuration("1h")
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
-		htpasswdPath := MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 
 		dbDir, err := testSetup(t)
@@ -527,14 +528,14 @@ func TestCVESearch(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		ctlr.Log.Logger = ctlr.Log.Output(writers)
-		ctrlManager := NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 
 		ctrlManager.StartAndWait(port)
 
 		// trivy db download fail
 		err = os.Mkdir(dbDir+"/_trivy", 0o000)
 		So(err, ShouldBeNil)
-		found, err := ReadLogFileAndSearchString(logPath, "Error downloading Trivy DB to destination dir", 180*time.Second)
+		found, err := testc.ReadLogFileAndSearchString(logPath, "Error downloading Trivy DB to destination dir", 180*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 
@@ -542,7 +543,7 @@ func TestCVESearch(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// Wait for trivy db to download
-		found, err = ReadLogFileAndSearchString(logPath, "DB update completed, next update scheduled", 180*time.Second)
+		found, err = testc.ReadLogFileAndSearchString(logPath, "DB update completed, next update scheduled", 180*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 
@@ -1613,8 +1614,8 @@ func TestFixedTags(t *testing.T) {
 func TestFixedTagsWithIndex(t *testing.T) {
 	Convey("Test fixed tags", t, func() {
 		tempDir := t.TempDir()
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		defaultVal := true
@@ -1642,33 +1643,33 @@ func TestFixedTagsWithIndex(t *testing.T) {
 		ctlr := api.NewController(conf)
 		ctlr.Log.Logger = ctlr.Log.Output(writers)
 
-		cm := NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 		// push index with 2 manifests: one with vulns and one without
 		vulnManifestCreated := time.Date(2010, 1, 1, 1, 1, 1, 1, time.UTC)
-		vulnManifest, err := GetVulnImageWithConfig(ispec.Image{
+		vulnManifest, err := deprecated.GetVulnImageWithConfig(ispec.Image{
 			Created:  &vulnManifestCreated,
 			Platform: ispec.Platform{OS: "linux", Architecture: "amd64"},
 		})
 		So(err, ShouldBeNil)
 
 		fixedManifestCreated := time.Date(2010, 1, 1, 1, 1, 1, 1, time.UTC)
-		fixedManifest, err := GetImageWithConfig(ispec.Image{
+		fixedManifest, err := deprecated.GetImageWithConfig(ispec.Image{
 			Created:  &fixedManifestCreated,
 			Platform: ispec.Platform{OS: "windows", Architecture: "amd64"},
 		})
 		So(err, ShouldBeNil)
 		fixedDigest := fixedManifest.Digest()
 
-		multiArch := GetMultiarchImageForImages([]Image{fixedManifest, vulnManifest})
+		multiArch := deprecated.GetMultiarchImageForImages([]Image{fixedManifest, vulnManifest})
 
 		err = UploadMultiarchImage(multiArch, baseURL, "repo", "multi-arch-tag")
 		So(err, ShouldBeNil)
 
 		// oldest vulnerability
 		simpleVulnCreated := time.Date(2005, 1, 1, 1, 1, 1, 1, time.UTC)
-		simpleVulnImg, err := GetVulnImageWithConfig(ispec.Image{
+		simpleVulnImg, err := deprecated.GetVulnImageWithConfig(ispec.Image{
 			Created:  &simpleVulnCreated,
 			Platform: ispec.Platform{OS: "windows", Architecture: "amd64"},
 		})
@@ -1678,7 +1679,7 @@ func TestFixedTagsWithIndex(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		// Wait for trivy db to download
-		found, err := ReadLogFileAndSearchString(logPath, "DB update completed, next update scheduled", 180*time.Second)
+		found, err := testc.ReadLogFileAndSearchString(logPath, "DB update completed, next update scheduled", 180*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 

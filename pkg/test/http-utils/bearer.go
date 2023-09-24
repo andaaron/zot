@@ -1,4 +1,4 @@
-package test
+package http_utils
 
 import (
 	"fmt"

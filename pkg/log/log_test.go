@@ -24,7 +24,6 @@ import (
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
 	"zotregistry.io/zot/pkg/log"
-	. "zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
 )
 
@@ -50,8 +49,8 @@ func TestAuditLogMessages(t *testing.T) {
 	Convey("Make a new controller", t, func() {
 		dir := t.TempDir()
 
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 
 		outputPath := dir + "/zot.log"
@@ -60,7 +59,7 @@ func TestAuditLogMessages(t *testing.T) {
 
 		conf.HTTP.Port = port
 
-		htpasswdPath := MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 		conf.HTTP.Auth = &config.AuthConfig{
 			HTPasswd: config.AuthHTPasswd{
@@ -71,7 +70,7 @@ func TestAuditLogMessages(t *testing.T) {
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = dir
 
-		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 

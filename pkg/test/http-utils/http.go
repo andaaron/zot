@@ -1,4 +1,4 @@
-package test
+package http_utils
 
 import (
 	"errors"
@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 type RouteHandler struct {
@@ -20,7 +22,7 @@ type RouteHandler struct {
 type HTTPRoutes []RouteHandler
 
 func StartTestHTTPServer(routes HTTPRoutes, port string) *http.Server {
-	baseURL := GetBaseURL(port)
+	baseURL := testc.GetBaseURL(port)
 	mux := mux.NewRouter()
 
 	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +47,7 @@ func StartTestHTTPServer(routes HTTPRoutes, port string) *http.Server {
 		}
 	}()
 
-	WaitTillServerReady(baseURL + "/test")
+	testc.WaitTillServerReady(baseURL + "/test")
 
 	return server
 }

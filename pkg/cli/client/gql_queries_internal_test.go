@@ -12,12 +12,12 @@ import (
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/config"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 func TestGQLQueries(t *testing.T) {
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 	dir := t.TempDir()
@@ -31,7 +31,7 @@ func TestGQLQueries(t *testing.T) {
 
 	ctlr := api.NewController(conf)
 
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 	cm.StartAndWait(conf.HTTP.Port)
 
 	defer cm.StopServer()

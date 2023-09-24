@@ -23,15 +23,16 @@ import (
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/storage"
 	"zotregistry.io/zot/pkg/storage/local"
-	. "zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 )
 
 //nolint:dupl
 func TestUserData(t *testing.T) {
 	Convey("Test user stars and bookmarks", t, func(c C) {
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		defaultVal := true
 
 		accessibleRepo := "accessible-repo"
@@ -46,7 +47,7 @@ func TestUserData(t *testing.T) {
 		twoCredTests := fmt.Sprintf("%s\n%s\n\n", getCredString(adminUser, adminPassword),
 			getCredString(simpleUser, simpleUserPassword))
 
-		htpasswdPath := MakeHtpasswdFileFromString(twoCredTests)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(twoCredTests)
 		defer os.Remove(htpasswdPath)
 
 		conf := config.New()
@@ -93,11 +94,11 @@ func TestUserData(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
-		config, layers, manifest, err := GetImageComponents(100)
+		config, layers, manifest, err := deprecated.GetImageComponents(100)
 		So(err, ShouldBeNil)
 
 		err = UploadImageWithBasicAuth(
@@ -457,8 +458,8 @@ func TestUserData(t *testing.T) {
 }
 
 func TestChangingRepoState(t *testing.T) {
-	port := GetFreePort()
-	baseURL := GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	defaultVal := true
 
 	simpleUser := "test"
@@ -469,7 +470,7 @@ func TestChangingRepoState(t *testing.T) {
 
 	credTests := fmt.Sprintf("%s\n\n", getCredString(simpleUser, simpleUserPassword))
 
-	htpasswdPath := MakeHtpasswdFileFromString(credTests)
+	htpasswdPath := testc.MakeHtpasswdFileFromString(credTests)
 	defer os.Remove(htpasswdPath)
 
 	conf := config.New()
@@ -538,7 +539,7 @@ func TestChangingRepoState(t *testing.T) {
 
 	ctlr := api.NewController(conf)
 
-	img, err := GetRandomImage()
+	img, err := deprecated.GetRandomImage()
 	if err != nil {
 		t.FailNow()
 	}
@@ -561,7 +562,7 @@ func TestChangingRepoState(t *testing.T) {
 		t.FailNow()
 	}
 
-	ctlrManager := NewControllerManager(ctlr)
+	ctlrManager := testc.NewControllerManager(ctlr)
 
 	ctlrManager.StartAndWait(port)
 
@@ -621,8 +622,8 @@ func TestChangingRepoState(t *testing.T) {
 func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 	Convey("Bookmarks and Stars filtering", t, func() {
 		dir := t.TempDir()
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RootDirectory = dir
@@ -631,7 +632,7 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 		simpleUserPassword := "simpleUserPass"
 		credTests := fmt.Sprintf("%s\n\n", getCredString(simpleUser, simpleUserPassword))
 
-		htpasswdPath := MakeHtpasswdFileFromString(credTests)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(credTests)
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -663,7 +664,7 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
@@ -672,14 +673,14 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 
 		// ------ Add simple repo
 		repo := "repo"
-		img, err := GetRandomImage()
+		img, err := deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, repo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
 
 		// ------ Add repo and star it
 		sRepo := "starred-repo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, sRepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -690,7 +691,7 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 
 		// ------ Add repo and bookmark it
 		bRepo := "bookmarked-repo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, bRepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -701,7 +702,7 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 
 		// ------ Add repo, star and bookmark it
 		sbRepo := "starred-bookmarked-repo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, sbRepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -817,8 +818,8 @@ func TestGlobalSearchWithUserPrefFiltering(t *testing.T) {
 func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 	Convey("ExpandedRepoInfo with User Prefs", t, func() {
 		dir := t.TempDir()
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.RootDirectory = dir
@@ -827,7 +828,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 		simpleUserPassword := "simpleUserPass"
 		credTests := fmt.Sprintf("%s\n\n", getCredString(simpleUser, simpleUserPassword))
 
-		htpasswdPath := MakeHtpasswdFileFromString(credTests)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(credTests)
 		defer os.Remove(htpasswdPath)
 
 		conf.HTTP.Auth = &config.AuthConfig{
@@ -859,7 +860,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 
-		ctlrManager := NewControllerManager(ctlr)
+		ctlrManager := testc.NewControllerManager(ctlr)
 		ctlrManager.StartAndWait(port)
 		defer ctlrManager.StopServer()
 
@@ -868,7 +869,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 
 		// ------ Add sbrepo and star/bookmark it
 		sbrepo := "sbrepo"
-		img, err := GetRandomImage()
+		img, err := deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, sbrepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -908,7 +909,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 
 		// ------ Add srepo and star it
 		srepo := "srepo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, srepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -943,7 +944,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 
 		// ------ Add brepo and bookmark it
 		brepo := "brepo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, brepo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)
@@ -978,7 +979,7 @@ func TestExpandedRepoInfoWithUserPrefs(t *testing.T) {
 
 		// ------ Add repo without star/bookmark
 		repo := "repo"
-		img, err = GetRandomImage()
+		img, err = deprecated.GetRandomImage()
 		So(err, ShouldBeNil)
 		err = UploadImageWithBasicAuth(img, baseURL, repo, "tag", simpleUser, simpleUserPassword)
 		So(err, ShouldBeNil)

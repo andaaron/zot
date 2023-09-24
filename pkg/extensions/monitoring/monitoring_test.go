@@ -15,14 +15,14 @@ import (
 	"zotregistry.io/zot/pkg/api/config"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	"zotregistry.io/zot/pkg/extensions/monitoring"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 )
 
 func TestExtensionMetrics(t *testing.T) {
 	Convey("Make a new controller with explicitly enabled metrics", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -39,7 +39,7 @@ func TestExtensionMetrics(t *testing.T) {
 		ctlr := api.NewController(conf)
 		So(ctlr, ShouldNotBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -55,8 +55,8 @@ func TestExtensionMetrics(t *testing.T) {
 		monitoring.IncDownloadCounter(ctlr.Metrics, "alpine")
 		monitoring.IncUploadCounter(ctlr.Metrics, "alpine")
 
-		srcStorageCtlr := test.GetDefaultStoreController(rootDir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "alpine", "0.0.1", srcStorageCtlr)
+		srcStorageCtlr := testc.GetDefaultStoreController(rootDir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "alpine", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		monitoring.SetStorageUsage(ctlr.Metrics, rootDir, "alpine")
@@ -77,8 +77,8 @@ func TestExtensionMetrics(t *testing.T) {
 		So(respStr, ShouldContainSubstring, "zot_storage_lock_latency_seconds_bucket")
 	})
 	Convey("Make a new controller with disabled metrics extension", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -90,7 +90,7 @@ func TestExtensionMetrics(t *testing.T) {
 		ctlr := api.NewController(conf)
 		So(ctlr, ShouldNotBeNil)
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 

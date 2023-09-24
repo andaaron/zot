@@ -31,7 +31,7 @@ import (
 	mTypes "zotregistry.io/zot/pkg/meta/types"
 	reqCtx "zotregistry.io/zot/pkg/requestcontext"
 	storageTypes "zotregistry.io/zot/pkg/storage/types"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 	"zotregistry.io/zot/pkg/test/mocks"
 )
 
@@ -39,12 +39,12 @@ const sessionStr = "session"
 
 func TestRoutes(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
-		htpasswdPath := test.MakeHtpasswdFile()
+		htpasswdPath := testc.MakeHtpasswdFile()
 		defer os.Remove(htpasswdPath)
 		mockOIDCServer, err := mockoidc.Run()
 		if err != nil {
@@ -83,7 +83,7 @@ func TestRoutes(t *testing.T) {
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
 		ctlr.Config.Storage.Commit = true
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 

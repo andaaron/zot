@@ -47,10 +47,12 @@ import (
 	"zotregistry.io/zot/pkg/log"
 	mTypes "zotregistry.io/zot/pkg/meta/types"
 	storageConstants "zotregistry.io/zot/pkg/storage/constants"
-	"zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/cosign"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
+	notationtest "zotregistry.io/zot/pkg/test/notation"
 )
 
 const (
@@ -90,13 +92,13 @@ func makeUpstreamServer(
 ) (*api.Controller, string, string, string, *resty.Client) {
 	t.Helper()
 
-	srcPort := test.GetFreePort()
+	srcPort := testc.GetFreePort()
 	srcConfig := config.New()
 	client := resty.New()
 
 	var srcBaseURL string
 	if secure {
-		srcBaseURL = test.GetSecureBaseURL(srcPort)
+		srcBaseURL = testc.GetSecureBaseURL(srcPort)
 
 		srcConfig.HTTP.TLS = &config.TLSConfig{
 			Cert:   ServerCert,
@@ -121,12 +123,12 @@ func makeUpstreamServer(
 
 		client.SetCertificates(cert)
 	} else {
-		srcBaseURL = test.GetBaseURL(srcPort)
+		srcBaseURL = testc.GetBaseURL(srcPort)
 	}
 
 	var htpasswdPath string
 	if basicAuth {
-		htpasswdPath = test.MakeHtpasswdFile()
+		htpasswdPath = testc.MakeHtpasswdFile()
 		srcConfig.HTTP.Auth = &config.AuthConfig{
 			HTPasswd: config.AuthHTPasswd{
 				Path: htpasswdPath,
@@ -138,14 +140,14 @@ func makeUpstreamServer(
 	srcConfig.Storage.GC = false
 
 	srcDir := t.TempDir()
-	srcStorageCtrl := test.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
+	srcStorageCtrl := testc.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
 
-	err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtrl)
+	err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtrl)
 	if err != nil {
 		panic(err)
 	}
 
-	err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtrl)
+	err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtrl)
 	if err != nil {
 		panic(err)
 	}
@@ -168,13 +170,13 @@ func makeDownstreamServer(
 ) (*api.Controller, string, string, *resty.Client) {
 	t.Helper()
 
-	destPort := test.GetFreePort()
+	destPort := testc.GetFreePort()
 	destConfig := config.New()
 	client := resty.New()
 
 	var destBaseURL string
 	if secure {
-		destBaseURL = test.GetSecureBaseURL(destPort)
+		destBaseURL = testc.GetSecureBaseURL(destPort)
 
 		destConfig.HTTP.TLS = &config.TLSConfig{
 			Cert:   ServerCert,
@@ -199,7 +201,7 @@ func makeDownstreamServer(
 
 		client.SetCertificates(cert)
 	} else {
-		destBaseURL = test.GetBaseURL(destPort)
+		destBaseURL = testc.GetBaseURL(destPort)
 	}
 
 	destConfig.HTTP.Port = destPort
@@ -228,7 +230,7 @@ func TestORAS(t *testing.T) {
 	Convey("Verify sync on demand for oras objects", t, func() {
 		sctlr, srcBaseURL, _, _, srcClient := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -292,7 +294,7 @@ func TestORAS(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -324,7 +326,7 @@ func TestORAS(t *testing.T) {
 		updateDuration, _ := time.ParseDuration("30m")
 
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -361,7 +363,7 @@ func TestORAS(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -518,7 +520,7 @@ func TestORAS(t *testing.T) {
 func TestOnDemand(t *testing.T) {
 	Convey("Verify sync on demand feature", t, func() {
 		sctlr, srcBaseURL, _, _, srcClient := makeUpstreamServer(t, false, false)
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -552,7 +554,7 @@ func TestOnDemand(t *testing.T) {
 
 			dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -659,7 +661,7 @@ func TestOnDemand(t *testing.T) {
 		Convey("Verify sync on demand feature with multiple registryConfig", func() {
 			// make a new upstream server
 			sctlr, newSrcBaseURL, srcDir, _, srcClient := makeUpstreamServer(t, false, false)
-			scm := test.NewControllerManager(sctlr)
+			scm := testc.NewControllerManager(sctlr)
 			scm.StartAndWait(sctlr.Config.HTTP.Port)
 			defer scm.StopServer()
 
@@ -678,7 +680,7 @@ func TestOnDemand(t *testing.T) {
 
 			dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -723,19 +725,19 @@ func TestOnDemand(t *testing.T) {
 		Convey("Signature copier errors", func() {
 			// start upstream server
 			rootDir := t.TempDir()
-			port := test.GetFreePort()
-			srcBaseURL := test.GetBaseURL(port)
+			port := testc.GetFreePort()
+			srcBaseURL := testc.GetBaseURL(port)
 			conf := config.New()
 			conf.HTTP.Port = port
 			conf.Storage.GC = false
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = rootDir
 
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(conf.HTTP.Port)
 			defer cm.StopServer()
 
-			imageConfig, layers, manifest, err := test.GetRandomImageComponents(10) //nolint:staticcheck
+			imageConfig, layers, manifest, err := deprecated.GetRandomImageComponents(10) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			manifestBlob, err := json.Marshal(manifest)
@@ -750,7 +752,7 @@ func TestOnDemand(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			// sign using cosign
-			err = test.SignImageUsingCosign(fmt.Sprintf("remote-repo@%s", manifestDigest.String()), port)
+			err = cosign.SignImageUsingCosign(fmt.Sprintf("remote-repo@%s", manifestDigest.String()), port)
 			So(err, ShouldBeNil)
 
 			// add cosign sbom
@@ -822,10 +824,10 @@ func TestOnDemand(t *testing.T) {
 			regex := ".*"
 			semver := true
 
-			destPort := test.GetFreePort()
+			destPort := testc.GetFreePort()
 			destConfig := config.New()
 
-			destBaseURL := test.GetBaseURL(destPort)
+			destBaseURL := testc.GetBaseURL(destPort)
 
 			hostname, err := os.Hostname()
 			So(err, ShouldBeNil)
@@ -896,7 +898,7 @@ func TestOnDemand(t *testing.T) {
 				},
 			}
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(destPort)
 			defer dcm.StopServer()
 
@@ -911,7 +913,7 @@ func TestSyncReferenceInLoop(t *testing.T) {
 	Convey("Verify sync doesn't end up in an infinite loop when syncing image references", t, func() {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -941,7 +943,7 @@ func TestSyncReferenceInLoop(t *testing.T) {
 
 		dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -1055,7 +1057,7 @@ func TestSyncWithNonDistributableBlob(t *testing.T) {
 	Convey("Verify sync doesn't copy non distributable blobs", t, func() {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -1087,9 +1089,9 @@ func TestSyncWithNonDistributableBlob(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
-		imageConfig, layers, manifest, err := test.GetRandomImageComponents(10) //nolint:staticcheck
+		imageConfig, layers, manifest, err := deprecated.GetRandomImageComponents(10) //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		nonDistributableLayer := make([]byte, 10)
@@ -1139,7 +1141,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -1228,7 +1230,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 			err = os.WriteFile(path.Join(srcDir, testImage, "index.json"), indexBuf, storageConstants.DefaultFilePerms)
 			So(err, ShouldBeNil)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -1241,7 +1243,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"skipping image because it's already synced", 20*time.Second)
 			if err != nil {
 				panic(err)
@@ -1278,7 +1280,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 
 			// upload multiple manifests
 			for i := 0; i < 4; i++ {
-				config, layers, manifest, err := test.GetImageComponents(1000 + i) //nolint:staticcheck
+				config, layers, manifest, err := deprecated.GetImageComponents(1000 + i) //nolint:staticcheck
 				So(err, ShouldBeNil)
 
 				manifestContent, err := json.Marshal(manifest)
@@ -1406,7 +1408,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 			err = os.WriteFile(path.Join(srcDir, indexRepoName, "index.json"), indexBuf, storageConstants.DefaultFilePerms)
 			So(err, ShouldBeNil)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -1426,7 +1428,7 @@ func TestDockerImagesAreSkipped(t *testing.T) {
 			So(resp.Body(), ShouldNotBeEmpty)
 			So(resp.Header().Get("Content-Type"), ShouldNotBeEmpty)
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"skipping image because it's already synced", 20*time.Second)
 			if err != nil {
 				panic(err)
@@ -1463,7 +1465,7 @@ func TestPeriodically(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, srcClient := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -1500,7 +1502,7 @@ func TestPeriodically(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -1574,7 +1576,7 @@ func TestPeriodically(t *testing.T) {
 
 			dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -1638,7 +1640,7 @@ func TestPermsDenied(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -1669,9 +1671,9 @@ func TestPermsDenied(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 
 		destConfig.HTTP.Port = destPort
 
@@ -1686,7 +1688,7 @@ func TestPermsDenied(t *testing.T) {
 		destConfig.Log.Output = path.Join(destDir, "sync.log")
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		defer dcm.StopServer()
 
@@ -1700,7 +1702,7 @@ func TestPermsDenied(t *testing.T) {
 
 		dcm.StartAndWait(destPort)
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"couldn't get a local image reference", 50*time.Second)
 		if err != nil {
 			panic(err)
@@ -1733,7 +1735,7 @@ func TestConfigReloader(t *testing.T) {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 		defer os.RemoveAll(srcDir)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -1760,9 +1762,9 @@ func TestConfigReloader(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 
 		destConfig.HTTP.Port = destPort
 
@@ -1785,7 +1787,7 @@ func TestConfigReloader(t *testing.T) {
 		destConfig.Log.Output = logFile.Name()
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		defer dcm.StopServer()
 
@@ -2005,7 +2007,7 @@ func TestMandatoryAnnotations(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2035,11 +2037,11 @@ func TestMandatoryAnnotations(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
 		destClient := resty.New()
 
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 
 		destConfig.HTTP.Port = destPort
 
@@ -2063,13 +2065,13 @@ func TestMandatoryAnnotations(t *testing.T) {
 		destConfig.Extensions.Lint.MandatoryAnnotations = []string{"annot1", "annot2", "annot3"}
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		dcm.StartAndWait(destPort)
 
 		defer dcm.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"couldn't upload manifest because of missing annotations", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -2099,7 +2101,7 @@ func TestBadTLS(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, true, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2131,11 +2133,11 @@ func TestBadTLS(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, true, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"x509: certificate signed by unknown authority", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -2170,7 +2172,7 @@ func TestTLS(t *testing.T) {
 
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, true, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2190,19 +2192,19 @@ func TestTLS(t *testing.T) {
 		destClientCertDir := t.TempDir()
 
 		destFilePath := path.Join(destClientCertDir, "ca.crt")
-		err = test.CopyFile(CACert, destFilePath)
+		err = testc.CopyFile(CACert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
 
 		destFilePath = path.Join(destClientCertDir, "client.cert")
-		err = test.CopyFile(ClientCert, destFilePath)
+		err = testc.CopyFile(ClientCert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
 
 		destFilePath = path.Join(destClientCertDir, "client.key")
-		err = test.CopyFile(ClientKey, destFilePath)
+		err = testc.CopyFile(ClientKey, destFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -2235,7 +2237,7 @@ func TestTLS(t *testing.T) {
 
 		dctlr, _, destDir, _ := makeDownstreamServer(t, true, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -2272,7 +2274,7 @@ func TestBasicAuth(t *testing.T) {
 			sctlr, srcBaseURL, _, htpasswdPath, srcClient := makeUpstreamServer(t, false, true)
 			defer os.Remove(htpasswdPath)
 
-			scm := test.NewControllerManager(sctlr)
+			scm := testc.NewControllerManager(sctlr)
 			scm.StartAndWait(sctlr.Config.HTTP.Port)
 			defer scm.StopServer()
 
@@ -2302,7 +2304,7 @@ func TestBasicAuth(t *testing.T) {
 
 			dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -2345,12 +2347,12 @@ func TestBasicAuth(t *testing.T) {
 			sctlr, srcBaseURL, _, htpasswdPath, _ := makeUpstreamServer(t, false, true)
 			defer os.Remove(htpasswdPath)
 
-			scm := test.NewControllerManager(sctlr)
+			scm := testc.NewControllerManager(sctlr)
 			scm.StartAndWait(sctlr.Config.HTTP.Port)
 			defer scm.StopServer()
 
-			destPort := test.GetFreePort()
-			destBaseURL := test.GetBaseURL(destPort)
+			destPort := testc.GetFreePort()
+			destBaseURL := testc.GetBaseURL(destPort)
 
 			destConfig := config.New()
 			destConfig.HTTP.Port = destPort
@@ -2408,11 +2410,11 @@ func TestBasicAuth(t *testing.T) {
 			destConfig.Log.Output = path.Join(destDir, "sync.log")
 
 			dctlr := api.NewController(destConfig)
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(destPort)
 			defer dcm.StopServer()
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"authentication required", 15*time.Second)
 			if err != nil {
 				panic(err)
@@ -2436,7 +2438,7 @@ func TestBasicAuth(t *testing.T) {
 			sctlr, srcBaseURL, _, htpasswdPath, _ := makeUpstreamServer(t, false, true)
 			defer os.Remove(htpasswdPath)
 
-			scm := test.NewControllerManager(sctlr)
+			scm := testc.NewControllerManager(sctlr)
 			scm.StartAndWait(sctlr.Config.HTTP.Port)
 			defer scm.StopServer()
 
@@ -2482,11 +2484,11 @@ func TestBasicAuth(t *testing.T) {
 
 			dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"couldn't get registry credentials from", 15*time.Second)
 			if err != nil {
 				panic(err)
@@ -2510,7 +2512,7 @@ func TestBasicAuth(t *testing.T) {
 			sctlr, srcBaseURL, _, htpasswdPath, srcClient := makeUpstreamServer(t, false, true)
 			defer os.Remove(htpasswdPath)
 
-			scm := test.NewControllerManager(sctlr)
+			scm := testc.NewControllerManager(sctlr)
 			scm.StartAndWait(sctlr.Config.HTTP.Port)
 			defer scm.StopServer()
 
@@ -2548,7 +2550,7 @@ func TestBasicAuth(t *testing.T) {
 
 			dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -2639,7 +2641,7 @@ func TestBadURL(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -2655,7 +2657,7 @@ func TestNoImagesByRegex(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2685,7 +2687,7 @@ func TestNoImagesByRegex(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -2714,7 +2716,7 @@ func TestInvalidRegex(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2745,11 +2747,11 @@ func TestInvalidRegex(t *testing.T) {
 
 		dctlr, _, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"couldn't compile regex", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -2772,7 +2774,7 @@ func TestNotSemver(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2817,7 +2819,7 @@ func TestNotSemver(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -2850,7 +2852,7 @@ func TestInvalidCerts(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, true, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -2858,7 +2860,7 @@ func TestInvalidCerts(t *testing.T) {
 		clientCertDir := t.TempDir()
 
 		destFilePath := path.Join(clientCertDir, "ca.crt")
-		err := test.CopyFile(CACert, destFilePath)
+		err := testc.CopyFile(CACert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -2875,13 +2877,13 @@ func TestInvalidCerts(t *testing.T) {
 		}
 
 		destFilePath = path.Join(clientCertDir, "client.cert")
-		err = test.CopyFile(ClientCert, destFilePath)
+		err = testc.CopyFile(ClientCert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
 
 		destFilePath = path.Join(clientCertDir, "client.key")
-		err = test.CopyFile(ClientKey, destFilePath)
+		err = testc.CopyFile(ClientKey, destFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -2908,7 +2910,7 @@ func TestInvalidCerts(t *testing.T) {
 		}
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -2925,7 +2927,7 @@ func TestCertsWithWrongPerms(t *testing.T) {
 		clientCertDir := t.TempDir()
 
 		destFilePath := path.Join(clientCertDir, "ca.crt")
-		err := test.CopyFile(CACert, destFilePath)
+		err := testc.CopyFile(CACert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -2934,13 +2936,13 @@ func TestCertsWithWrongPerms(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		destFilePath = path.Join(clientCertDir, "client.cert")
-		err = test.CopyFile(ClientCert, destFilePath)
+		err = testc.CopyFile(ClientCert, destFilePath)
 		if err != nil {
 			panic(err)
 		}
 
 		destFilePath = path.Join(clientCertDir, "client.key")
-		err = test.CopyFile(ClientKey, destFilePath)
+		err = testc.CopyFile(ClientKey, destFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -2967,7 +2969,7 @@ func TestCertsWithWrongPerms(t *testing.T) {
 		}
 
 		// can't create http client because of no perms on ca cert
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
 		destConfig.HTTP.Port = destPort
 
@@ -2981,7 +2983,7 @@ func TestCertsWithWrongPerms(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3038,7 +3040,7 @@ func TestInvalidUrl(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3054,7 +3056,7 @@ func TestInvalidTags(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -3088,7 +3090,7 @@ func TestInvalidTags(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3102,9 +3104,9 @@ func TestSubPaths(t *testing.T) {
 	Convey("Verify sync with storage subPaths", t, func() {
 		updateDuration, _ := time.ParseDuration("30m")
 
-		srcPort := test.GetFreePort()
+		srcPort := testc.GetFreePort()
 		srcConfig := config.New()
-		srcBaseURL := test.GetBaseURL(srcPort)
+		srcBaseURL := testc.GetBaseURL(srcPort)
 
 		srcConfig.HTTP.Port = srcPort
 
@@ -3113,19 +3115,19 @@ func TestSubPaths(t *testing.T) {
 		srcDir := t.TempDir()
 
 		subpath := "/subpath"
-		srcStorageCtlr := test.GetDefaultStoreController(path.Join(srcDir, subpath), log.NewLogger("debug", ""))
+		srcStorageCtlr := testc.GetDefaultStoreController(path.Join(srcDir, subpath), log.NewLogger("debug", ""))
 
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
+		err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		srcConfig.Storage.RootDirectory = srcDir
 
 		sctlr := api.NewController(srcConfig)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(srcPort)
 		defer scm.StopServer()
 
@@ -3156,7 +3158,7 @@ func TestSubPaths(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
 
 		destDir := t.TempDir()
@@ -3175,7 +3177,7 @@ func TestSubPaths(t *testing.T) {
 			},
 		}
 
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 		destConfig.HTTP.Port = destPort
 
 		destConfig.Extensions = &extconf.ExtensionConfig{}
@@ -3184,7 +3186,7 @@ func TestSubPaths(t *testing.T) {
 
 		dctlr := api.NewController(destConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(destPort)
 		defer dcm.StopServer()
 
@@ -3246,7 +3248,7 @@ func TestOnDemandRepoErr(t *testing.T) {
 
 		dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3260,7 +3262,7 @@ func TestOnDemandContentFiltering(t *testing.T) {
 	Convey("Verify sync on demand feature", t, func() {
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -3294,7 +3296,7 @@ func TestOnDemandContentFiltering(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -3333,7 +3335,7 @@ func TestOnDemandContentFiltering(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -3348,7 +3350,7 @@ func TestConfigRules(t *testing.T) {
 	Convey("Verify sync config rules", t, func() {
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -3381,7 +3383,7 @@ func TestConfigRules(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -3411,7 +3413,7 @@ func TestConfigRules(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -3438,7 +3440,7 @@ func TestConfigRules(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -3455,7 +3457,7 @@ func TestMultipleURLs(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, srcClient := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -3487,7 +3489,7 @@ func TestMultipleURLs(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3559,7 +3561,7 @@ func TestNoURLsLeftInConfig(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -3576,7 +3578,7 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -3648,11 +3650,11 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"finished syncing all repos", 15*time.Second)
 			if err != nil {
 				panic(err)
@@ -3696,11 +3698,11 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 			// start downstream server
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"finished syncing all repos", 15*time.Second)
 			if err != nil {
 				panic(err)
@@ -3765,11 +3767,11 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 			// start downstream server
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
-			found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+			found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 				"finished syncing all repos", 15*time.Second)
 			if err != nil {
 				panic(err)
@@ -3839,11 +3841,11 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 				// start downstream server
 				dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-				dcm := test.NewControllerManager(dctlr)
+				dcm := testc.NewControllerManager(dctlr)
 				dcm.StartAndWait(dctlr.Config.HTTP.Port)
 				defer dcm.StopServer()
 
-				found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+				found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 					"couldn't sync image referrer", 15*time.Second)
 				if err != nil {
 					panic(err)
@@ -3892,11 +3894,11 @@ func TestPeriodicallySignaturesErr(t *testing.T) {
 				// start downstream server
 				dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-				dcm := test.NewControllerManager(dctlr)
+				dcm := testc.NewControllerManager(dctlr)
 				dcm.StartAndWait(dctlr.Config.HTTP.Port)
 				defer dcm.StopServer()
 
-				found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+				found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 					"couldn't sync image referrer", 15*time.Second)
 				if err != nil {
 					panic(err)
@@ -3932,7 +3934,7 @@ func TestSignatures(t *testing.T) {
 
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -4068,7 +4070,7 @@ func TestSignatures(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4108,9 +4110,9 @@ func TestSignatures(t *testing.T) {
 			IgnoreTlog:      true,
 		}
 
-		test.LoadNotationPath(tdir)
+		notationtest.LoadNotationPath(tdir)
 		// notation verify signed image
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldBeNil)
 
 		// cosign verify signed image
@@ -4143,9 +4145,9 @@ func TestSignatures(t *testing.T) {
 		// verify sbom signature
 		sbom := fmt.Sprintf("localhost:%s/%s@%s", destPort, repoName, sbomDigest)
 
-		test.LoadNotationPath(tdir)
+		notationtest.LoadNotationPath(tdir)
 		// notation verify signed sbom
-		err = test.VerifyWithNotation(sbom, tdir)
+		err = notationtest.VerifyWithNotation(sbom, tdir)
 		So(err, ShouldBeNil)
 
 		vrfy = verify.VerifyCommand{
@@ -4506,21 +4508,21 @@ func TestSyncedSignaturesMetaDB(t *testing.T) {
 		t.Log(srcDir)
 		srcPort := getPortFromBaseURL(srcBaseURL)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
 		// Push an image
-		signedImage, err := test.GetRandomImage() //nolint:staticcheck
+		signedImage, err := deprecated.GetRandomImage() //nolint:staticcheck
 		So(err, ShouldBeNil)
 
 		err = UploadImage(signedImage, srcBaseURL, repoName, tag)
 		So(err, ShouldBeNil)
 
-		err = test.SignImageUsingNotary(repoName+":"+tag, srcPort)
+		err = notationtest.SignImageUsingNotary(repoName+":"+tag, srcPort)
 		So(err, ShouldBeNil)
 
-		err = test.SignImageUsingCosign(repoName+":"+tag, srcPort)
+		err = cosign.SignImageUsingCosign(repoName+":"+tag, srcPort)
 		So(err, ShouldBeNil)
 
 		// Create destination registry
@@ -4553,7 +4555,7 @@ func TestSyncedSignaturesMetaDB(t *testing.T) {
 		dctlr, destBaseURL, dstDir, _ := makeDownstreamServer(t, false, syncConfig)
 		t.Log(dstDir)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4578,27 +4580,27 @@ func TestSyncedSignaturesMetaDB(t *testing.T) {
 
 func TestOnDemandRetryGoroutine(t *testing.T) {
 	Convey("Verify ondemand sync retries in background on error", t, func() {
-		srcPort := test.GetFreePort()
+		srcPort := testc.GetFreePort()
 		srcConfig := config.New()
-		srcBaseURL := test.GetBaseURL(srcPort)
+		srcBaseURL := testc.GetBaseURL(srcPort)
 
 		srcConfig.HTTP.Port = srcPort
 		srcConfig.Storage.GC = false
 
 		srcDir := t.TempDir()
 
-		srcStorageCtlr := test.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
+		srcStorageCtlr := testc.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
 
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
+		err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		srcConfig.Storage.RootDirectory = srcDir
 
 		sctlr := api.NewController(srcConfig)
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 
 		regex := ".*"
 		semver := true
@@ -4633,7 +4635,7 @@ func TestOnDemandRetryGoroutine(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4646,7 +4648,7 @@ func TestOnDemandRetryGoroutine(t *testing.T) {
 		defer scm.StopServer()
 
 		// in the meantime ondemand should retry syncing
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"successfully synced image", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -4677,7 +4679,7 @@ func TestOnDemandWithDigest(t *testing.T) {
 	Convey("Verify ondemand sync works with both digests and tags", t, func() {
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -4709,7 +4711,7 @@ func TestOnDemandWithDigest(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4761,7 +4763,7 @@ func TestOnDemandRetryGoroutineErr(t *testing.T) {
 
 		dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4769,7 +4771,7 @@ func TestOnDemandRetryGoroutineErr(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"sync routine: error while copying image", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -4791,27 +4793,27 @@ func TestOnDemandRetryGoroutineErr(t *testing.T) {
 
 func TestOnDemandMultipleImage(t *testing.T) {
 	Convey("Verify ondemand sync retries in background on error, multiple calls should spawn one routine", t, func() {
-		srcPort := test.GetFreePort()
+		srcPort := testc.GetFreePort()
 		srcConfig := config.New()
-		srcBaseURL := test.GetBaseURL(srcPort)
+		srcBaseURL := testc.GetBaseURL(srcPort)
 
 		srcConfig.HTTP.Port = srcPort
 		srcConfig.Storage.GC = false
 
 		srcDir := t.TempDir()
 
-		srcStorageCtlr := test.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
+		srcStorageCtlr := testc.GetDefaultStoreController(srcDir, log.NewLogger("debug", ""))
 
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
+		err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		srcConfig.Storage.RootDirectory = srcDir
 
 		sctlr := api.NewController(srcConfig)
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 
 		var tlsVerify bool
 
@@ -4836,7 +4838,7 @@ func TestOnDemandMultipleImage(t *testing.T) {
 		dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 		defer os.RemoveAll(destDir)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -4904,7 +4906,7 @@ func TestOnDemandPullsOnce(t *testing.T) {
 	Convey("Verify sync on demand pulls only one time", t, func(conv C) {
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -4936,7 +4938,7 @@ func TestOnDemandPullsOnce(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -5002,7 +5004,7 @@ func TestError(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5034,7 +5036,7 @@ func TestError(t *testing.T) {
 
 		dctlr, _, destDir, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -5051,7 +5053,7 @@ func TestError(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"couldn't commit image to local image store", 30*time.Second)
 		if err != nil {
 			panic(err)
@@ -5072,7 +5074,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 	Convey("Verify sync signatures on demand feature", t, func() {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5112,7 +5114,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -5126,7 +5128,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 
 		// notation verify the synced image
 		image := fmt.Sprintf("localhost:%s/%s:%s", destPort, repoName, testImageTag)
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldBeNil)
 
 		// cosign verify the synced image
@@ -5194,7 +5196,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 	Convey("Verify sync signatures on demand feature: notation - negative cases", t, func() {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5232,9 +5234,9 @@ func TestSignaturesOnDemand(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 		destConfig.HTTP.Port = destPort
 
 		destDir := t.TempDir()
@@ -5249,7 +5251,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 		destConfig.Log.Output = path.Join(destDir, "sync.log")
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		dcm.StartAndWait(destPort)
 
@@ -5281,7 +5283,7 @@ func TestSignaturesOnDemand(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"couldn't find any oci reference", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -5302,7 +5304,7 @@ func TestOnlySignaturesOnDemand(t *testing.T) {
 	Convey("Verify sync signatures on demand feature when we already have the image", t, func() {
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5345,7 +5347,7 @@ func TestOnlySignaturesOnDemand(t *testing.T) {
 
 		dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -5363,7 +5365,7 @@ func TestOnlySignaturesOnDemand(t *testing.T) {
 
 		// sync signature on demand when upstream doesn't have the signature
 		image := fmt.Sprintf("localhost:%s/%s:%s", destPort, repoName, testImageTag)
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldNotBeNil)
 
 		// cosign verify the synced image
@@ -5382,7 +5384,7 @@ func TestOnlySignaturesOnDemand(t *testing.T) {
 
 		// now it should sync signatures on demand, even if we already have the image
 		image = fmt.Sprintf("localhost:%s/%s:%s", destPort, repoName, testImageTag)
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldBeNil)
 
 		// cosign verify the synced image
@@ -5415,7 +5417,7 @@ func TestSyncOnlyDiff(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5440,20 +5442,20 @@ func TestSyncOnlyDiff(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 		destConfig.HTTP.Port = destPort
 
 		destDir := t.TempDir()
 
 		// copy images so we have them before syncing, sync should not pull them again
-		destStorageCtrl := test.GetDefaultStoreController(destDir, log.NewLogger("debug", ""))
+		destStorageCtrl := testc.GetDefaultStoreController(destDir, log.NewLogger("debug", ""))
 
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", destStorageCtrl)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", destStorageCtrl)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", destStorageCtrl)
+		err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", destStorageCtrl)
 		So(err, ShouldBeNil)
 
 		destConfig.Storage.RootDirectory = destDir
@@ -5466,7 +5468,7 @@ func TestSyncOnlyDiff(t *testing.T) {
 		destConfig.Log.Output = path.Join(destDir, "sync.log")
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		dcm.StartAndWait(destPort)
 
@@ -5476,7 +5478,7 @@ func TestSyncOnlyDiff(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"skipping image because it's already synced", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -5501,7 +5503,7 @@ func TestSyncWithDiffDigest(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5526,20 +5528,20 @@ func TestSyncWithDiffDigest(t *testing.T) {
 			Registries: []syncconf.RegistryConfig{syncRegistryConfig},
 		}
 
-		destPort := test.GetFreePort()
+		destPort := testc.GetFreePort()
 		destConfig := config.New()
-		destBaseURL := test.GetBaseURL(destPort)
+		destBaseURL := testc.GetBaseURL(destPort)
 		destConfig.HTTP.Port = destPort
 
 		destDir := t.TempDir()
 
 		// copy images so we have them before syncing, sync should not pull them again
-		srcStorageCtlr := test.GetDefaultStoreController(destDir, log.NewLogger("debug", ""))
+		srcStorageCtlr := testc.GetDefaultStoreController(destDir, log.NewLogger("debug", ""))
 
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
-		err = test.WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
+		err = WriteImageToFileSystem(CreateDefaultVulnerableImage(), "zot-cve-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		destConfig.Storage.RootDirectory = destDir
@@ -5552,7 +5554,7 @@ func TestSyncWithDiffDigest(t *testing.T) {
 		destConfig.Log.Output = path.Join(destDir, "sync.log")
 
 		dctlr := api.NewController(destConfig)
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 
 		// before starting downstream server, let's modify an image manifest so that sync should pull it
 		// change digest of the manifest so that sync should happen
@@ -5629,7 +5631,7 @@ func TestSyncWithDiffDigest(t *testing.T) {
 
 		defer dcm.StopServer()
 
-		test.WaitTillServerReady(destBaseURL)
+		testc.WaitTillServerReady(destBaseURL)
 
 		resp, err = resty.R().Get(destBaseURL + "/v2/" + testImage + "/manifests/" + testImageTag)
 		So(err, ShouldBeNil)
@@ -5651,7 +5653,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 		sctlr, srcBaseURL, srcDir, _, _ := makeUpstreamServer(t, false, false)
 		defer os.RemoveAll(srcDir)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -5703,7 +5705,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 
 		dctlr, destBaseURL, destDir, destClient := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -5735,7 +5737,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 
 		// notation verify the image
 		image := fmt.Sprintf("localhost:%s/%s:%s", destPort, repoName, testImageTag)
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldBeNil)
 
 		// cosign verify the image
@@ -5761,7 +5763,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 
 		// notation verify the image
 		image = fmt.Sprintf("localhost:%s/%s:%s", destPort, repoName, testImageTag)
-		err = test.VerifyWithNotation(image, tdir)
+		err = notationtest.VerifyWithNotation(image, tdir)
 		So(err, ShouldBeNil)
 
 		// cosign verify the image
@@ -5843,7 +5845,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 		// compare cosign signatures
 		So(reflect.DeepEqual(cosignManifest, syncedCosignManifest), ShouldEqual, true)
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"skipping syncing cosign reference", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -5858,7 +5860,7 @@ func TestSyncSignaturesDiff(t *testing.T) {
 
 		So(found, ShouldBeTrue)
 
-		found, err = test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err = testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"skipping oci references", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -5882,7 +5884,7 @@ func TestOnlySignedFlag(t *testing.T) {
 
 	sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false) //nolint: dogsled
 
-	scm := test.NewControllerManager(sctlr)
+	scm := testc.NewControllerManager(sctlr)
 	scm.StartAndWait(sctlr.Config.HTTP.Port)
 
 	defer scm.StopServer()
@@ -5921,11 +5923,11 @@ func TestOnlySignedFlag(t *testing.T) {
 
 		dctlr, destBaseURL, _, client := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
-		found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+		found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 			"skipping image without mandatory signature", 15*time.Second)
 		if err != nil {
 			panic(err)
@@ -5956,7 +5958,7 @@ func TestOnlySignedFlag(t *testing.T) {
 
 		dctlr, destBaseURL, _, client := makeDownstreamServer(t, false, syncConfig)
 
-		dcm := test.NewControllerManager(dctlr)
+		dcm := testc.NewControllerManager(dctlr)
 		dcm.StartAndWait(dctlr.Config.HTTP.Port)
 		defer dcm.StopServer()
 
@@ -6022,7 +6024,7 @@ func TestSyncWithDestination(t *testing.T) {
 		)
 		So(err, ShouldBeNil)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -6067,12 +6069,12 @@ func TestSyncWithDestination(t *testing.T) {
 
 				dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-				dcm := test.NewControllerManager(dctlr)
+				dcm := testc.NewControllerManager(dctlr)
 				dcm.StartAndWait(dctlr.Config.HTTP.Port)
 				defer dcm.StopServer()
 
 				// give it time to set up sync
-				found, err := test.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
+				found, err := testc.ReadLogFileAndSearchString(dctlr.Config.Log.Output,
 					"finished syncing repo", 60*time.Second)
 				if err != nil {
 					panic(err)
@@ -6091,7 +6093,7 @@ func TestSyncWithDestination(t *testing.T) {
 
 				// notation verify the synced image
 				image := fmt.Sprintf("localhost:%s/%s:%s", destPort, testCase.expected, testImageTag)
-				err = test.VerifyWithNotation(image, tdir)
+				err = notationtest.VerifyWithNotation(image, tdir)
 				So(err, ShouldBeNil)
 
 				// cosign verify the synced image
@@ -6126,7 +6128,7 @@ func TestSyncWithDestination(t *testing.T) {
 
 				dctlr, destBaseURL, _, destClient := makeDownstreamServer(t, false, syncConfig)
 
-				dcm := test.NewControllerManager(dctlr)
+				dcm := testc.NewControllerManager(dctlr)
 				dcm.StartAndWait(dctlr.Config.HTTP.Port)
 				defer dcm.StopServer()
 
@@ -6141,7 +6143,7 @@ func TestSyncWithDestination(t *testing.T) {
 
 				// notation verify the synced image
 				image := fmt.Sprintf("localhost:%s/%s:%s", destPort, testCase.expected, testImageTag)
-				err = test.VerifyWithNotation(image, tdir)
+				err = notationtest.VerifyWithNotation(image, tdir)
 				So(err, ShouldBeNil)
 
 				// cosign verify the synced image
@@ -6165,7 +6167,7 @@ func TestSyncImageIndex(t *testing.T) {
 
 		sctlr, srcBaseURL, _, _, _ := makeUpstreamServer(t, false, false)
 
-		scm := test.NewControllerManager(sctlr)
+		scm := testc.NewControllerManager(sctlr)
 		scm.StartAndWait(sctlr.Config.HTTP.Port)
 		defer scm.StopServer()
 
@@ -6202,7 +6204,7 @@ func TestSyncImageIndex(t *testing.T) {
 
 		// upload multiple manifests
 		for i := 0; i < 4; i++ {
-			config, layers, manifest, err := test.GetImageComponents(1000 + i) //nolint:staticcheck
+			config, layers, manifest, err := deprecated.GetImageComponents(1000 + i) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			manifestContent, err := json.Marshal(manifest)
@@ -6244,7 +6246,7 @@ func TestSyncImageIndex(t *testing.T) {
 			// start downstream server
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -6275,7 +6277,7 @@ func TestSyncImageIndex(t *testing.T) {
 
 			dctlr, destBaseURL, _, _ := makeDownstreamServer(t, false, syncConfig)
 
-			dcm := test.NewControllerManager(dctlr)
+			dcm := testc.NewControllerManager(dctlr)
 			dcm.StartAndWait(dctlr.Config.HTTP.Port)
 			defer dcm.StopServer()
 
@@ -6306,12 +6308,12 @@ func generateKeyPairs(tdir string) {
 		}
 	}
 
-	test.NotationPathLock.Lock()
-	defer test.NotationPathLock.Unlock()
+	notationtest.NotationPathLock.Lock()
+	defer notationtest.NotationPathLock.Unlock()
 
-	test.LoadNotationPath(tdir)
+	notationtest.LoadNotationPath(tdir)
 
-	err := test.GenerateNotationCerts(tdir, "good")
+	err := notationtest.GenerateNotationCerts(tdir, "good")
 	if err != nil {
 		panic(err)
 	}
@@ -6360,20 +6362,20 @@ func signImage(tdir, port, repoName string, digest godigest.Digest) {
 		panic(err)
 	}
 
-	test.NotationPathLock.Lock()
-	defer test.NotationPathLock.Unlock()
+	notationtest.NotationPathLock.Lock()
+	defer notationtest.NotationPathLock.Unlock()
 
-	test.LoadNotationPath(tdir)
+	notationtest.LoadNotationPath(tdir)
 
 	// sign the image
 	image := fmt.Sprintf("localhost:%s/%s@%s", port, repoName, digest.String())
 
-	err = test.SignWithNotation("good", image, tdir)
+	err = notationtest.SignWithNotation("good", image, tdir)
 	if err != nil {
 		panic(err)
 	}
 
-	err = test.VerifyWithNotation(image, tdir)
+	err = notationtest.VerifyWithNotation(image, tdir)
 	if err != nil {
 		panic(err)
 	}
@@ -6443,7 +6445,7 @@ func pushRepo(url, repoName string) godigest.Digest {
 	}
 
 	loc = testc.Location(url, resp)
-	cblob, cdigest = test.GetRandomImageConfig()
+	cblob, cdigest = GetRandomImageConfig()
 
 	resp, err = resty.R().
 		SetContentLength(true).
@@ -6633,7 +6635,7 @@ func pushBlob(url string, repoName string, buf []byte) godigest.Digest {
 }
 
 func waitSyncFinish(logPath string) bool {
-	found, err := test.ReadLogFileAndSearchString(logPath,
+	found, err := testc.ReadLogFileAndSearchString(logPath,
 		"finished syncing all repos", 60*time.Second)
 	if err != nil {
 		panic(err)

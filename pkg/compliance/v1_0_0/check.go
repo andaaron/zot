@@ -22,8 +22,8 @@ import (
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/constants"
 	"zotregistry.io/zot/pkg/compliance"
-	"zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	"zotregistry.io/zot/pkg/test/image-utils"
 )
 
@@ -486,7 +486,7 @@ func CheckWorkflows(t *testing.T, config *compliance.Config) {
 			So(err, ShouldBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
 
-			cfg, layers, manifest, err := test.GetImageComponents(1) //nolint:staticcheck
+			cfg, layers, manifest, err := deprecated.GetImageComponents(1) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			repoName := "repo7"
@@ -594,7 +594,7 @@ func CheckWorkflows(t *testing.T, config *compliance.Config) {
 			_, _ = Print("\nPagination")
 
 			for index := 0; index <= 4; index++ {
-				cfg, layers, manifest, err := test.GetImageComponents(1) //nolint:staticcheck
+				cfg, layers, manifest, err := deprecated.GetImageComponents(1) //nolint:staticcheck
 				So(err, ShouldBeNil)
 
 				repoName := "page0"
@@ -734,7 +734,7 @@ func CheckWorkflows(t *testing.T, config *compliance.Config) {
 			So(err, ShouldBeNil)
 			So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
 
-			cfg, layers, manifest, err := test.GetImageComponents(1) //nolint:staticcheck
+			cfg, layers, manifest, err := deprecated.GetImageComponents(1) //nolint:staticcheck
 			So(err, ShouldBeNil)
 
 			// subpath firsttest

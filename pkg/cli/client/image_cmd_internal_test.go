@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -32,9 +33,11 @@ import (
 	"zotregistry.io/zot/pkg/common"
 	extconf "zotregistry.io/zot/pkg/extensions/config"
 	zlog "zotregistry.io/zot/pkg/log"
-	"zotregistry.io/zot/pkg/test"
+	stypes "zotregistry.io/zot/pkg/storage/types"
 	testc "zotregistry.io/zot/pkg/test/common"
+	"zotregistry.io/zot/pkg/test/deprecated"
 	. "zotregistry.io/zot/pkg/test/image-utils"
+	notationtest "zotregistry.io/zot/pkg/test/notation"
 )
 
 func TestSearchImageCmd(t *testing.T) {
@@ -237,8 +240,8 @@ func TestSignature(t *testing.T) {
 		err = os.Chdir(currentDir)
 		So(err, ShouldBeNil)
 
-		port := test.GetFreePort()
-		url := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		url := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		defaultVal := true
@@ -247,7 +250,7 @@ func TestSignature(t *testing.T) {
 		}
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = currentDir
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -313,8 +316,8 @@ func TestSignature(t *testing.T) {
 		err = os.Chdir(currentDir)
 		So(err, ShouldBeNil)
 
-		port := test.GetFreePort()
-		url := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		url := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		defaultVal := true
@@ -323,7 +326,7 @@ func TestSignature(t *testing.T) {
 		}
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = currentDir
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -331,7 +334,7 @@ func TestSignature(t *testing.T) {
 		err = UploadImage(CreateDefaultImage(), url, repoName, "0.0.1")
 		So(err, ShouldBeNil)
 
-		err = test.SignImageUsingNotary("repo7:0.0.1", port)
+		err = notationtest.SignImageUsingNotary("repo7:0.0.1", port)
 		So(err, ShouldBeNil)
 
 		searchConfig := getTestSearchConfig(url, new(searchService))
@@ -364,8 +367,8 @@ func TestSignature(t *testing.T) {
 
 //nolint:dupl
 func TestDerivedImageList(t *testing.T) {
-	port := test.GetFreePort()
-	url := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	url := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 	defaultVal := true
@@ -375,7 +378,7 @@ func TestDerivedImageList(t *testing.T) {
 	ctlr := api.NewController(conf)
 	ctlr.Config.Storage.RootDirectory = t.TempDir()
 
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 
 	cm.StartAndWait(conf.HTTP.Port)
 	defer cm.StopServer()
@@ -423,8 +426,8 @@ func TestDerivedImageList(t *testing.T) {
 
 //nolint:dupl
 func TestBaseImageList(t *testing.T) {
-	port := test.GetFreePort()
-	url := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	url := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 	defaultVal := true
@@ -433,7 +436,7 @@ func TestBaseImageList(t *testing.T) {
 	}
 	ctlr := api.NewController(conf)
 	ctlr.Config.Storage.RootDirectory = t.TempDir()
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 
 	cm.StartAndWait(conf.HTTP.Port)
 	defer cm.StopServer()
@@ -734,8 +737,8 @@ func TestOutputFormat(t *testing.T) {
 
 func TestOutputFormatGQL(t *testing.T) {
 	Convey("Test from real server", t, func() {
-		port := test.GetFreePort()
-		url := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		url := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		defaultVal := true
@@ -744,7 +747,7 @@ func TestOutputFormatGQL(t *testing.T) {
 		}
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -900,8 +903,8 @@ func TestOutputFormatGQL(t *testing.T) {
 
 func TestServerResponseGQL(t *testing.T) {
 	Convey("Test from real server", t, func() {
-		port := test.GetFreePort()
-		url := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		url := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 		defaultVal := true
@@ -910,7 +913,7 @@ func TestServerResponseGQL(t *testing.T) {
 		}
 		ctlr := api.NewController(conf)
 		ctlr.Config.Storage.RootDirectory = t.TempDir()
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(conf.HTTP.Port)
 		defer cm.StopServer()
 
@@ -1118,8 +1121,8 @@ func TestServerResponseGQL(t *testing.T) {
 }
 
 func TestServerResponse(t *testing.T) {
-	port := test.GetFreePort()
-	url := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	url := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 	defaultVal := true
@@ -1128,7 +1131,7 @@ func TestServerResponse(t *testing.T) {
 	}
 	ctlr := api.NewController(conf)
 	ctlr.Config.Storage.RootDirectory = t.TempDir()
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 
 	cm.StartAndWait(conf.HTTP.Port)
 	defer cm.StopServer()
@@ -1227,14 +1230,14 @@ func TestServerResponse(t *testing.T) {
 
 func TestServerResponseGQLWithoutPermissions(t *testing.T) {
 	Convey("Test accessing a blobs folder without having permissions fails fast", t, func() {
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 
 		dir := t.TempDir()
 
-		srcStorageCtlr := test.GetDefaultStoreController(dir, zlog.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
+		srcStorageCtlr := testc.GetDefaultStoreController(dir, zlog.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateDefaultImage(), "zot-test", "0.0.1", srcStorageCtlr)
 		So(err, ShouldBeNil)
 
 		err = os.Chmod(path.Join(dir, "zot-test", "blobs"), 0o000)
@@ -1267,8 +1270,8 @@ func TestServerResponseGQLWithoutPermissions(t *testing.T) {
 
 func TestDisplayIndex(t *testing.T) {
 	Convey("Init Basic Server, No GQL", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		conf := config.New()
 		conf.HTTP.Port = port
 
@@ -1279,7 +1282,7 @@ func TestDisplayIndex(t *testing.T) {
 			}
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = t.TempDir()
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 
 			cm.StartAndWait(conf.HTTP.Port)
 			defer cm.StopServer()
@@ -1294,7 +1297,7 @@ func TestDisplayIndex(t *testing.T) {
 			}
 			ctlr := api.NewController(conf)
 			ctlr.Config.Storage.RootDirectory = t.TempDir()
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 
 			cm.StartAndWait(conf.HTTP.Port)
 			defer cm.StopServer()
@@ -1360,8 +1363,8 @@ func runDisplayIndexTests(baseURL string) {
 
 func TestImagesSortFlag(t *testing.T) {
 	rootDir := t.TempDir()
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 
@@ -1381,19 +1384,19 @@ func TestImagesSortFlag(t *testing.T) {
 	image2 := CreateImageWith().DefaultLayers().
 		ImageConfig(ispec.Image{Created: DateRef(2020, 1, 1, 1, 1, 1, 0, time.UTC)}).Build()
 
-	storeController := test.GetDefaultStoreController(rootDir, ctlr.Log)
+	storeController := testc.GetDefaultStoreController(rootDir, ctlr.Log)
 
-	err := test.WriteImageToFileSystem(image1, "a-repo", "tag1", storeController)
+	err := WriteImageToFileSystem(image1, "a-repo", "tag1", storeController)
 	if err != nil {
 		t.FailNow()
 	}
 
-	err = test.WriteImageToFileSystem(image2, "b-repo", "tag2", storeController)
+	err = WriteImageToFileSystem(image2, "b-repo", "tag2", storeController)
 	if err != nil {
 		t.FailNow()
 	}
 
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 	cm.StartAndWait(conf.HTTP.Port)
 
 	defer cm.StopServer()
@@ -1433,8 +1436,8 @@ func TestImagesSortFlag(t *testing.T) {
 }
 
 func TestImagesCommandGQL(t *testing.T) {
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 
@@ -1446,13 +1449,13 @@ func TestImagesCommandGQL(t *testing.T) {
 	}
 	ctlr := api.NewController(conf)
 	ctlr.Config.Storage.RootDirectory = t.TempDir()
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 
 	cm.StartAndWait(conf.HTTP.Port)
 	defer cm.StopServer()
 
 	Convey("commands with gql", t, func() {
-		err := test.RemoveLocalStorageContents(ctlr.StoreController.DefaultStore)
+		err := removeLocalStorageContents(ctlr.StoreController.DefaultStore)
 		So(err, ShouldBeNil)
 
 		Convey("base and derived command", func() {
@@ -1836,20 +1839,20 @@ func TestImagesCommandGQL(t *testing.T) {
 }
 
 func TestImageCommandREST(t *testing.T) {
-	port := test.GetFreePort()
-	baseURL := test.GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	conf := config.New()
 	conf.HTTP.Port = port
 
 	ctlr := api.NewController(conf)
 	ctlr.Config.Storage.RootDirectory = t.TempDir()
-	cm := test.NewControllerManager(ctlr)
+	cm := testc.NewControllerManager(ctlr)
 
 	cm.StartAndWait(conf.HTTP.Port)
 	defer cm.StopServer()
 
 	Convey("commands without gql", t, func() {
-		err := test.RemoveLocalStorageContents(ctlr.StoreController.DefaultStore)
+		err := removeLocalStorageContents(ctlr.StoreController.DefaultStore)
 		So(err, ShouldBeNil)
 
 		Convey("base and derived command", func() {
@@ -2008,7 +2011,7 @@ func uploadTestMultiarch(baseURL string) {
 
 	// ------- Upload The multiarch image
 
-	multiarch := test.GetMultiarchImageForImages([]Image{image1, image2}) //nolint:staticcheck
+	multiarch := deprecated.GetMultiarchImageForImages([]Image{image1, image2}) //nolint:staticcheck
 
 	err := UploadMultiarchImage(multiarch, baseURL, "repo", "multi-arch")
 	So(err, ShouldBeNil)
@@ -2704,4 +2707,21 @@ func getTestSearchConfig(url string, searchService SearchService) searchConfig {
 		verifyTLS:     verifyTLS,
 		resultWriter:  nil,
 	}
+}
+
+func removeLocalStorageContents(imageStore stypes.ImageStore) error {
+	repos, err := imageStore.GetRepositories()
+	if err != nil {
+		return err
+	}
+
+	for _, repo := range repos {
+		// take just the first path
+		err = os.RemoveAll(filepath.Join(imageStore.RootDir(), filepath.SplitList(repo)[0]))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

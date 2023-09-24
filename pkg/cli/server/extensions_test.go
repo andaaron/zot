@@ -15,7 +15,7 @@ import (
 
 	"zotregistry.io/zot/pkg/api/config"
 	cli "zotregistry.io/zot/pkg/cli/server"
-	. "zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 const readLogFileTimeout = 5 * time.Second
@@ -369,8 +369,8 @@ func TestServeExtensions(t *testing.T) {
 	defer func() { os.Args = oldArgs }()
 
 	Convey("config file with no extensions", t, func(c C) {
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
 		defer os.Remove(logFile.Name()) // clean up
@@ -403,15 +403,15 @@ func TestServeExtensions(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 		data, err := os.ReadFile(logFile.Name())
 		So(err, ShouldBeNil)
 		So(string(data), ShouldContainSubstring, "\"Extensions\":null")
 	})
 
 	Convey("config file with empty extensions", t, func(c C) {
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
 		defer os.Remove(logFile.Name()) // clean up
@@ -446,7 +446,7 @@ func TestServeExtensions(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 		data, err := os.ReadFile(logFile.Name())
 		So(err, ShouldBeNil)
 		So(string(data), ShouldContainSubstring,
@@ -455,8 +455,8 @@ func TestServeExtensions(t *testing.T) {
 }
 
 func testWithMetricsEnabled(cfgContentFormat string) {
-	port := GetFreePort()
-	baseURL := GetBaseURL(port)
+	port := testc.GetFreePort()
+	baseURL := testc.GetBaseURL(port)
 	logFile, err := os.CreateTemp("", "zot-log*.txt")
 	So(err, ShouldBeNil)
 
@@ -478,7 +478,7 @@ func testWithMetricsEnabled(cfgContentFormat string) {
 		err = cli.NewServerRootCmd().Execute()
 		So(err, ShouldBeNil)
 	}()
-	WaitTillServerReady(baseURL)
+	testc.WaitTillServerReady(baseURL)
 
 	resp, err := resty.R().Get(baseURL + "/metrics")
 	So(err, ShouldBeNil)
@@ -567,8 +567,8 @@ func TestServeMetricsExtension(t *testing.T) {
 	})
 
 	Convey("with explicit disable", t, func(c C) {
-		port := GetFreePort()
-		baseURL := GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
 		defer os.Remove(logFile.Name()) // clean up
@@ -605,7 +605,7 @@ func TestServeMetricsExtension(t *testing.T) {
 			err = cli.NewServerRootCmd().Execute()
 			So(err, ShouldBeNil)
 		}()
-		WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		resp, err := resty.R().Get(baseURL + "/metrics")
 		So(err, ShouldBeNil)
@@ -982,7 +982,7 @@ func TestServeSearchEnabled(t *testing.T) {
 
 		substring := `"Extensions":{"Search":{"Enable":true,"CVE":null}`
 
-		found, err := ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
+		found, err := testc.ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 
 		if !found {
 			data, err := os.ReadFile(logPath)
@@ -1027,13 +1027,13 @@ func TestServeSearchEnabledCVE(t *testing.T) {
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
 		// to avoid data race when multiple go routines write to trivy DB instance.
-		WaitTillTrivyDBDownloadStarted(tempDir)
+		testc.WaitTillTrivyDBDownloadStarted(tempDir)
 
 		// The default config handling logic will convert the 1h interval to a 2h interval
 		substring := "\"Search\":{\"Enable\":true,\"CVE\":{\"UpdateInterval\":7200000000000,\"Trivy\":" +
 			"{\"DBRepository\":\"ghcr.io/aquasecurity/trivy-db\",\"JavaDBRepository\":\"ghcr.io/aquasecurity/trivy-java-db\"}}}"
 
-		found, err := ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
+		found, err := testc.ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 
 		defer func() {
 			if !found {
@@ -1046,7 +1046,7 @@ func TestServeSearchEnabledCVE(t *testing.T) {
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 
-		found, err = ReadLogFileAndSearchString(logPath, "updating the CVE database", readLogFileTimeout)
+		found, err = testc.ReadLogFileAndSearchString(logPath, "updating the CVE database", readLogFileTimeout)
 		So(found, ShouldBeTrue)
 		So(err, ShouldBeNil)
 	})
@@ -1083,7 +1083,7 @@ func TestServeSearchEnabledNoCVE(t *testing.T) {
 		defer os.Remove(logPath) // clean up
 
 		substring := `"Extensions":{"Search":{"Enable":true,"CVE":null}` //nolint:lll // gofumpt conflicts with lll
-		found, err := ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
+		found, err := testc.ReadLogFileAndSearchString(logPath, substring, readLogFileTimeout)
 
 		if !found {
 			data, err := os.ReadFile(logPath)
@@ -1166,7 +1166,7 @@ func TestServeMgmtExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath, "setting up mgmt routes", 10*time.Second)
+		found, err := testc.ReadLogFileAndSearchString(logPath, "setting up mgmt routes", 10*time.Second)
 
 		if !found {
 			data, err := os.ReadFile(logPath)
@@ -1201,7 +1201,7 @@ func TestServeMgmtExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath,
+		found, err := testc.ReadLogFileAndSearchString(logPath,
 			"skip enabling the mgmt route as the config prerequisites are not met", 10*time.Second)
 
 		if !found {
@@ -1232,7 +1232,7 @@ func TestServeMgmtExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath,
+		found, err := testc.ReadLogFileAndSearchString(logPath,
 			"skip enabling the mgmt route as the config prerequisites are not met", 10*time.Second)
 
 		if !found {
@@ -1274,7 +1274,7 @@ func TestServeImageTrustExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath,
+		found, err := testc.ReadLogFileAndSearchString(logPath,
 			"skip enabling the image trust routes as the config prerequisites are not met", 10*time.Second)
 
 		if !found {
@@ -1310,7 +1310,7 @@ func TestServeImageTrustExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath,
+		found, err := testc.ReadLogFileAndSearchString(logPath,
 			"skip enabling the image trust routes as the config prerequisites are not met", 10*time.Second)
 
 		if !found {
@@ -1348,7 +1348,7 @@ func TestServeImageTrustExtension(t *testing.T) {
 		logPath, err := runCLIWithConfig(t.TempDir(), content)
 		So(err, ShouldBeNil)
 		defer os.Remove(logPath) // clean up
-		found, err := ReadLogFileAndSearchString(logPath,
+		found, err := testc.ReadLogFileAndSearchString(logPath,
 			"setting up image trust routes", 10*time.Second)
 
 		defer func() {
@@ -1362,12 +1362,12 @@ func TestServeImageTrustExtension(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 
-		found, err = ReadLogFileAndSearchString(logPath,
+		found, err = testc.ReadLogFileAndSearchString(logPath,
 			"setting up notation route", 10*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 
-		found, err = ReadLogFileAndSearchString(logPath,
+		found, err = testc.ReadLogFileAndSearchString(logPath,
 			"setting up cosign route", 10*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)

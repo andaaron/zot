@@ -23,7 +23,6 @@ import (
 	"zotregistry.io/zot/pkg/extensions/monitoring"
 	"zotregistry.io/zot/pkg/log"
 	"zotregistry.io/zot/pkg/storage/local"
-	"zotregistry.io/zot/pkg/test"
 	testc "zotregistry.io/zot/pkg/test/common"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 )
@@ -44,8 +43,8 @@ const (
 func TestVerifyMandatoryAnnotations(t *testing.T) {
 	//nolint: dupl
 	Convey("Mandatory annotations disabled", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -56,14 +55,14 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
 
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -90,8 +89,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 
 	//nolint: dupl
 	Convey("Mandatory annotations enabled, but no list in config", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -103,14 +102,14 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
 
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -136,8 +135,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 	})
 
 	Convey("Mandatory annotations verification passing", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -151,13 +150,13 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -189,8 +188,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 	})
 
 	Convey("Mandatory annotations verification in manifest and config passing", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -204,13 +203,13 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -277,8 +276,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 	})
 
 	Convey("Mandatory annotations verification in manifest and config failing", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -292,13 +291,13 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -364,8 +363,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 	})
 
 	Convey("Mandatory annotations incomplete in manifest", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -379,13 +378,13 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		ctlr.Config.Storage.RootDirectory = dir
 
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 		cm.StartAndWait(port)
 		defer cm.StopServer()
 
@@ -416,8 +415,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 	})
 
 	Convey("Mandatory annotations verification passing - more annotations than the mandatory list", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		conf := config.New()
 		conf.HTTP.Port = port
@@ -430,8 +429,8 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		ctlr := api.NewController(conf)
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, ctlr.Log)
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, ctlr.Log)
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		files, err := os.ReadDir(dir)
@@ -440,7 +439,7 @@ func TestVerifyMandatoryAnnotations(t *testing.T) {
 		t.Log("Files in dir:", dir, ": ", files)
 
 		ctlr.Config.Storage.RootDirectory = dir
-		cm := test.NewControllerManager(ctlr)
+		cm := testc.NewControllerManager(ctlr)
 
 		cm.StartAndWait(port)
 		defer cm.StopServer()
@@ -485,8 +484,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -517,8 +516,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -549,8 +548,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -612,8 +611,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -674,8 +673,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -738,8 +737,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index
@@ -811,8 +810,8 @@ func TestVerifyMandatoryAnnotationsFunction(t *testing.T) {
 
 		dir := t.TempDir()
 
-		testStoreCtlr := test.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
-		err := test.WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
+		testStoreCtlr := testc.GetDefaultStoreController(dir, log.NewLogger("debug", ""))
+		err := WriteImageToFileSystem(CreateRandomImage(), "zot-test", "0.0.1", testStoreCtlr)
 		So(err, ShouldBeNil)
 
 		var index ispec.Index

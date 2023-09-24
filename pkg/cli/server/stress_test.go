@@ -17,7 +17,7 @@ import (
 	"zotregistry.io/zot/pkg/api"
 	"zotregistry.io/zot/pkg/api/config"
 	cli "zotregistry.io/zot/pkg/cli/server"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 const (
@@ -38,7 +38,7 @@ func TestSressTooManyOpenFiles(t *testing.T) {
 		initialLimit, err := setMaxOpenFilesLimit(MaxFileDescriptors)
 		So(err, ShouldBeNil)
 
-		port := test.GetFreePort()
+		port := testc.GetFreePort()
 		conf := config.New()
 		conf.HTTP.Port = port
 		conf.Storage.Dedupe = false
@@ -73,7 +73,7 @@ func TestSressTooManyOpenFiles(t *testing.T) {
 		t.Log("Storage root dir is: ", dir)
 		ctlr.Config.Storage.RootDirectory = dir
 
-		ctrlManager := test.NewControllerManager(ctlr)
+		ctrlManager := testc.NewControllerManager(ctlr)
 		ctrlManager.StartAndWait(port)
 
 		content := fmt.Sprintf(`{

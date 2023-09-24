@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	cli "zotregistry.io/zot/pkg/cli/server"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 func TestConfigReloader(t *testing.T) {
@@ -23,8 +23,8 @@ func TestConfigReloader(t *testing.T) {
 	defer func() { os.Args = oldArgs }()
 
 	Convey("reload access control config", t, func(c C) {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
@@ -39,7 +39,7 @@ func TestConfigReloader(t *testing.T) {
 
 		usernameAndHash := fmt.Sprintf("%s:%s", username, string(hash))
 
-		htpasswdPath := test.MakeHtpasswdFileFromString(usernameAndHash)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(usernameAndHash)
 		defer os.Remove(htpasswdPath)
 
 		defer os.Remove(logFile.Name()) // clean up
@@ -100,7 +100,7 @@ func TestConfigReloader(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		content = fmt.Sprintf(`{
 			"distSpecVersion": "1.1.0-dev",
@@ -167,8 +167,8 @@ func TestConfigReloader(t *testing.T) {
 	})
 
 	Convey("reload sync config", t, func(c C) {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
@@ -228,7 +228,7 @@ func TestConfigReloader(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		content = fmt.Sprintf(`{
 			"distSpecVersion": "1.1.0-dev",
@@ -299,8 +299,8 @@ func TestConfigReloader(t *testing.T) {
 	})
 
 	Convey("reload scrub and CVE config", t, func(c C) {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
@@ -350,7 +350,7 @@ func TestConfigReloader(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		content = fmt.Sprintf(`{
 			"distSpecVersion": "1.1.0-dev",
@@ -392,7 +392,7 @@ func TestConfigReloader(t *testing.T) {
 		// wait for config reload
 		time.Sleep(5 * time.Second)
 
-		found, err := test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err := testc.ReadLogFileAndSearchString(logFile.Name(),
 			"Error downloading Trivy DB to destination dir", 30*time.Second)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
@@ -407,15 +407,15 @@ func TestConfigReloader(t *testing.T) {
 		So(string(data), ShouldContainSubstring, "\"Scrub\":null")
 		So(string(data), ShouldContainSubstring, "\"DBRepository\":\"another/unreachable/trivy/url2\"")
 		// matching log message when it errors out, test that indeed the download will try the second url
-		found, err = test.ReadLogFileAndSearchString(logFile.Name(),
+		found, err = testc.ReadLogFileAndSearchString(logFile.Name(),
 			"\"dbRepository\":\"another/unreachable/trivy/url2\",\"goroutine", 1*time.Minute)
 		So(err, ShouldBeNil)
 		So(found, ShouldBeTrue)
 	})
 
 	Convey("reload bad config", t, func(c C) {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 
 		logFile, err := os.CreateTemp("", "zot-log*.txt")
 		So(err, ShouldBeNil)
@@ -475,7 +475,7 @@ func TestConfigReloader(t *testing.T) {
 			So(err, ShouldBeNil)
 		}()
 
-		test.WaitTillServerReady(baseURL)
+		testc.WaitTillServerReady(baseURL)
 
 		content = "[]"
 

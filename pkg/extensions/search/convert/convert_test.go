@@ -20,9 +20,9 @@ import (
 	"zotregistry.io/zot/pkg/extensions/search/pagination"
 	"zotregistry.io/zot/pkg/log"
 	mTypes "zotregistry.io/zot/pkg/meta/types"
-	"zotregistry.io/zot/pkg/test"
 	. "zotregistry.io/zot/pkg/test/image-utils"
 	"zotregistry.io/zot/pkg/test/mocks"
+	ocilayout "zotregistry.io/zot/pkg/test/oci-layout"
 )
 
 var ErrTestError = errors.New("TestError")
@@ -441,10 +441,10 @@ func TestPaginatedConvert(t *testing.T) {
 			[]Image{badOsImage, badArchImage, randomImage2, goodImage}).Build()
 	)
 
-	reposMeta, manifestMetaMap, indexDataMap := test.GetMetadataForRepos(
-		test.Repo{
+	reposMeta, manifestMetaMap, indexDataMap := ocilayout.GetMetadataForRepos(
+		ocilayout.Repo{
 			Name: "repo1-only-images",
-			Images: []test.RepoImage{
+			Images: []ocilayout.RepoImage{
 				{Image: goodImage, Tag: "goodImage"},
 				{Image: badOsImage, Tag: "badOsImage"},
 				{Image: badArchImage, Tag: "badArchImage"},
@@ -453,9 +453,9 @@ func TestPaginatedConvert(t *testing.T) {
 			IsBookmarked: true,
 			IsStarred:    true,
 		},
-		test.Repo{
+		ocilayout.Repo{
 			Name: "repo2-only-bad-images",
-			Images: []test.RepoImage{
+			Images: []ocilayout.RepoImage{
 				{Image: randomImage1, Tag: "randomImage1"},
 				{Image: randomImage2, Tag: "randomImage2"},
 				{Image: badBothImage, Tag: "badBothImage"},
@@ -463,27 +463,27 @@ func TestPaginatedConvert(t *testing.T) {
 			IsBookmarked: true,
 			IsStarred:    true,
 		},
-		test.Repo{
+		ocilayout.Repo{
 			Name: "repo3-only-multiarch",
-			MultiArchImages: []test.RepoMultiArchImage{
+			MultiArchImages: []ocilayout.RepoMultiArchImage{
 				{MultiarchImage: badMultiArch, Tag: "badMultiArch"},
 				{MultiarchImage: goodMultiArch, Tag: "goodMultiArch"},
 			},
 			IsBookmarked: true,
 			IsStarred:    true,
 		},
-		test.Repo{
+		ocilayout.Repo{
 			Name: "repo4-not-bookmarked-or-starred",
-			Images: []test.RepoImage{
+			Images: []ocilayout.RepoImage{
 				{Image: goodImage, Tag: "goodImage"},
 			},
-			MultiArchImages: []test.RepoMultiArchImage{
+			MultiArchImages: []ocilayout.RepoMultiArchImage{
 				{MultiarchImage: goodMultiArch, Tag: "goodMultiArch"},
 			},
 		},
-		test.Repo{
+		ocilayout.Repo{
 			Name: "repo5-signed",
-			Images: []test.RepoImage{
+			Images: []ocilayout.RepoImage{
 				{Image: goodImage, Tag: "goodImage"}, // is fake signed by the image below
 				{Image: CreateFakeTestSignature(goodImage.DescriptorRef())},
 			},
@@ -746,9 +746,9 @@ func TestIndexAnnotations(t *testing.T) {
 			[]Image{imageWithManifestAndConfigAnnotations},
 		).Annotations(indexAnnotations).Build()
 
-		repoMeta, manifestMetadata, indexData := test.GetMetadataForRepos(test.Repo{
+		repoMeta, manifestMetadata, indexData := ocilayout.GetMetadataForRepos(ocilayout.Repo{
 			Name: "repo",
-			MultiArchImages: []test.RepoMultiArchImage{
+			MultiArchImages: []ocilayout.RepoMultiArchImage{
 				{MultiarchImage: indexWithAnnotations, Tag: "tag"},
 			},
 		})
@@ -771,9 +771,9 @@ func TestIndexAnnotations(t *testing.T) {
 			[]Image{imageWithManifestAndConfigAnnotations, CreateRandomImage(), CreateRandomImage()},
 		).Build()
 
-		repoMeta, manifestMetadata, indexData = test.GetMetadataForRepos(test.Repo{
+		repoMeta, manifestMetadata, indexData = ocilayout.GetMetadataForRepos(ocilayout.Repo{
 			Name:            "repo",
-			MultiArchImages: []test.RepoMultiArchImage{{MultiarchImage: indexWithManifestAndConfigAnnotations}},
+			MultiArchImages: []ocilayout.RepoMultiArchImage{{MultiarchImage: indexWithManifestAndConfigAnnotations}},
 		})
 		digest = indexWithManifestAndConfigAnnotations.Digest()
 
@@ -792,9 +792,9 @@ func TestIndexAnnotations(t *testing.T) {
 			[]Image{imageWithConfigAnnotations, CreateRandomImage(), CreateRandomImage()},
 		).Build()
 
-		repoMeta, manifestMetadata, indexData = test.GetMetadataForRepos(test.Repo{
+		repoMeta, manifestMetadata, indexData = ocilayout.GetMetadataForRepos(ocilayout.Repo{
 			Name:            "repo",
-			MultiArchImages: []test.RepoMultiArchImage{{MultiarchImage: indexWithConfigAnnotations, Tag: "tag"}},
+			MultiArchImages: []ocilayout.RepoMultiArchImage{{MultiarchImage: indexWithConfigAnnotations, Tag: "tag"}},
 		})
 		digest = indexWithConfigAnnotations.Digest()
 
@@ -834,9 +834,9 @@ func TestIndexAnnotations(t *testing.T) {
 			},
 		).Build()
 
-		repoMeta, manifestMetadata, indexData = test.GetMetadataForRepos(test.Repo{
+		repoMeta, manifestMetadata, indexData = ocilayout.GetMetadataForRepos(ocilayout.Repo{
 			Name:            "repo",
-			MultiArchImages: []test.RepoMultiArchImage{{MultiarchImage: indexWithMixAnnotations, Tag: "tag"}},
+			MultiArchImages: []ocilayout.RepoMultiArchImage{{MultiarchImage: indexWithMixAnnotations, Tag: "tag"}},
 		})
 		digest = indexWithMixAnnotations.Digest()
 
@@ -854,9 +854,9 @@ func TestIndexAnnotations(t *testing.T) {
 		//--------------------------------------------------------
 		indexWithNoAnnotations := CreateRandomMultiarch()
 
-		repoMeta, manifestMetadata, indexData = test.GetMetadataForRepos(test.Repo{
+		repoMeta, manifestMetadata, indexData = ocilayout.GetMetadataForRepos(ocilayout.Repo{
 			Name:            "repo",
-			MultiArchImages: []test.RepoMultiArchImage{{MultiarchImage: indexWithNoAnnotations, Tag: "tag"}},
+			MultiArchImages: []ocilayout.RepoMultiArchImage{{MultiarchImage: indexWithNoAnnotations, Tag: "tag"}},
 		})
 		digest = indexWithNoAnnotations.Digest()
 
@@ -875,10 +875,10 @@ func TestIndexAnnotations(t *testing.T) {
 
 func TestDownloadCount(t *testing.T) {
 	Convey("manifest", t, func() {
-		repoMeta, manifestMetaMap, indexDataMap := test.GetMetadataForRepos(
-			test.Repo{
+		repoMeta, manifestMetaMap, indexDataMap := ocilayout.GetMetadataForRepos(
+			ocilayout.Repo{
 				Name: "repo",
-				Images: []test.RepoImage{
+				Images: []ocilayout.RepoImage{
 					{
 						Image: CreateRandomImage(),
 						Tag:   "10-downloads",
@@ -899,10 +899,10 @@ func TestDownloadCount(t *testing.T) {
 		img1, img2, img3 := CreateRandomImage(), CreateRandomImage(), CreateRandomImage()
 		multiArch := CreateMultiarchWith().Images([]Image{img1, img2, img3}).Build()
 
-		repoMeta, manifestMetaMap, indexDataMap := test.GetMetadataForRepos(
-			test.Repo{
+		repoMeta, manifestMetaMap, indexDataMap := ocilayout.GetMetadataForRepos(
+			ocilayout.Repo{
 				Name: "repo",
-				MultiArchImages: []test.RepoMultiArchImage{
+				MultiArchImages: []ocilayout.RepoMultiArchImage{
 					{
 						MultiarchImage: multiArch,
 						Tag:            "160-multiarch",
@@ -931,17 +931,17 @@ func TestDownloadCount(t *testing.T) {
 
 		multiArch := CreateMultiarchWith().Images([]Image{img1, img2, img3}).Build()
 
-		repoMeta, manifestMetaMap, indexDataMap := test.GetMetadataForRepos(
-			test.Repo{
+		repoMeta, manifestMetaMap, indexDataMap := ocilayout.GetMetadataForRepos(
+			ocilayout.Repo{
 				Name: "repo",
-				Images: []test.RepoImage{
+				Images: []ocilayout.RepoImage{
 					{
 						Image:      CreateRandomImage(),
 						Tag:        "5-downloads",
 						Statistics: mTypes.DescriptorStatistics{DownloadCount: 5},
 					},
 				},
-				MultiArchImages: []test.RepoMultiArchImage{
+				MultiArchImages: []ocilayout.RepoMultiArchImage{
 					{
 						MultiarchImage: multiArch,
 						Tag:            "160-multiarch",

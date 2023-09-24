@@ -15,22 +15,22 @@ import (
 	"zotregistry.io/zot/pkg/api/config"
 	"zotregistry.io/zot/pkg/api/constants"
 	debugConstants "zotregistry.io/zot/pkg/debug/constants"
-	"zotregistry.io/zot/pkg/test"
+	testc "zotregistry.io/zot/pkg/test/common"
 )
 
 func TestProfilingAuthz(t *testing.T) {
 	Convey("Make a new controller", t, func() {
-		port := test.GetFreePort()
-		baseURL := test.GetBaseURL(port)
+		port := testc.GetFreePort()
+		baseURL := testc.GetBaseURL(port)
 		adminUsername := "admin"
 		adminPassword := "admin"
 		username := "test"
 		password := "test"
 		authorizationAllRepos := "**"
 
-		testCreds := test.GetCredString(adminUsername, adminPassword) +
-			"\n" + test.GetCredString(username, password)
-		htpasswdPath := test.MakeHtpasswdFileFromString(testCreds)
+		testCreds := testc.GetCredString(adminUsername, adminPassword) +
+			"\n" + testc.GetCredString(username, password)
+		htpasswdPath := testc.MakeHtpasswdFileFromString(testCreds)
 		defer os.Remove(htpasswdPath)
 
 		conf := config.New()
@@ -39,7 +39,7 @@ func TestProfilingAuthz(t *testing.T) {
 
 		Convey("Test with no access control", func() {
 			ctlr := api.NewController(conf)
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -98,7 +98,7 @@ func TestProfilingAuthz(t *testing.T) {
 			}
 
 			ctlr := api.NewController(conf)
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
@@ -155,7 +155,7 @@ func TestProfilingAuthz(t *testing.T) {
 			}
 
 			ctlr := api.NewController(conf)
-			cm := test.NewControllerManager(ctlr)
+			cm := testc.NewControllerManager(ctlr)
 			cm.StartAndWait(port)
 			defer cm.StopServer()
 
