@@ -39,9 +39,10 @@ func TestCopyFiles(t *testing.T) {
 	Convey("destDir is a file", t, func() {
 		dir := t.TempDir()
 
-		test.CopyTestFiles("../../test/data", dir)
+		err := test.CopyFiles("../../test/data", dir)
+		So(err, ShouldBeNil)
 
-		err := test.CopyFiles(dir, "/etc/passwd")
+		err = test.CopyFiles(dir, "/etc/passwd")
 		So(err, ShouldNotBeNil)
 	})
 	Convey("sourceDir does not have read permissions", t, func() {
@@ -118,9 +119,6 @@ func TestCopyFiles(t *testing.T) {
 
 		_, err = os.Stat(path.Join(dstDir, "test-index", "index.json"))
 		So(err, ShouldBeNil)
-	})
-	Convey("panic when sourceDir does not exist", t, func() {
-		So(func() { test.CopyTestFiles("/path/to/some/unexisting/directory", os.TempDir()) }, ShouldPanic)
 	})
 }
 
