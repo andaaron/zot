@@ -335,16 +335,6 @@ func GetImageManifestMeta(manifestContent ispec.Manifest, configContent ispec.Im
 	}
 }
 
-func GetImageIndexMeta(indexContent ispec.Index, size int64, digest godigest.Digest) mTypes.ImageMeta {
-	return mTypes.ImageMeta{
-		MediaType: ispec.MediaTypeImageIndex,
-		Index:     &indexContent,
-		Manifests: GetManifests(indexContent.Manifests),
-		Size:      size,
-		Digest:    digest,
-	}
-}
-
 func GetTags(tags map[mTypes.Tag]*proto_go.TagDescriptor) map[mTypes.Tag]mTypes.Descriptor {
 	resultMap := map[mTypes.Tag]mTypes.Descriptor{}
 

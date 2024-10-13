@@ -302,11 +302,11 @@ func getNotationSignatureLayersInfo(
 	return layers, nil
 }
 
-// SetMetadataFromInput tries to set manifest metadata and update repo metadata by adding the current tag
-// (in case the reference is a tag). The function expects image manifests and indexes (multi arch images).
-func SetImageMetaFromInput(ctx context.Context, repo, reference, mediaType string, digest godigest.Digest, blob []byte,
-	imageStore stypes.ImageStore, metaDB mTypes.MetaDB, log log.Logger,
-) error {
+// InitializeImageMetaFromStorage initializes the image metadata based on image store content
+// The function expects image manifests and indexes (multi arch images).
+func InitializeImageMetaFromStorage(repo, mediaType string, digest godigest.Digest, blob []byte,
+	imageStore stypes.ImageStore, log log.Logger,
+) (mTypes.ImageMeta, error) {
 	var imageMeta mTypes.ImageMeta
 
 	switch mediaType {
@@ -316,54 +316,22 @@ func SetImageMetaFromInput(ctx context.Context, repo, reference, mediaType strin
 
 		err := json.Unmarshal(blob, &manifestContent)
 		if err != nil {
-			log.Error().Err(err).Str("component", "metadb").Msg("failed to unmarshal image manifest")
+			log.Error().Err(err).Str("repository", repo).Str("digest", digest.String()).
+				Msg("failed to unmarshal image manifest")
 
-			return err
+			return imageMeta, err
 		}
 
 		if manifestContent.Config.MediaType == ispec.MediaTypeImageConfig {
 			configBlob, err := imageStore.GetBlobContent(repo, manifestContent.Config.Digest)
 			if err != nil {
-				return err
+				return imageMeta, err
 			}
 
 			err = json.Unmarshal(configBlob, &configContent)
 			if err != nil {
-				return err
+				return imageMeta, err
 			}
-		}
-
-		if isSig, sigType, signedManifestDigest := isSignature(reference, manifestContent); isSig {
-			layers, err := GetSignatureLayersInfo(repo, reference, digest.String(), sigType,
-				blob, imageStore, log)
-			if err != nil {
-				return err
-			}
-
-			err = metaDB.AddManifestSignature(repo, signedManifestDigest,
-				mTypes.SignatureMetadata{
-					SignatureType:   sigType,
-					SignatureDigest: digest.String(),
-					SignatureTag:    reference,
-					LayersInfo:      layers,
-				})
-			if err != nil {
-				log.Error().Err(err).Str("repository", repo).Str("tag", reference).
-					Str("manifestDigest", signedManifestDigest.String()).
-					Msg("failed set signature meta for signed image")
-
-				return err
-			}
-
-			err = metaDB.UpdateSignaturesValidity(ctx, repo, signedManifestDigest)
-			if err != nil {
-				log.Error().Err(err).Str("repository", repo).Str("reference", reference).Str("digest",
-					signedManifestDigest.String()).Msg("failed to verify signature validity for signed image")
-
-				return err
-			}
-
-			return nil
 		}
 
 		imageMeta = convert.GetImageManifestMeta(manifestContent, configContent, int64(len(blob)), digest)
@@ -372,17 +340,97 @@ func SetImageMetaFromInput(ctx context.Context, repo, reference, mediaType strin
 
 		err := json.Unmarshal(blob, &indexContent)
 		if err != nil {
+			return imageMeta, err
+		}
+
+		manifestList := []mTypes.ManifestMeta{}
+
+		for _, manifest := range indexContent.Manifests {
+			manifestBlob, _, _, err := imageStore.GetImageManifest(repo, manifest.Digest.String())
+			if err != nil {
+				log.Error().Err(err).Str("repository", repo).
+					Str("digest", manifest.Digest.String()).Msg("failed to get blob for image")
+
+				return imageMeta, err
+			}
+
+			partialImageMeta, err := InitializeImageMetaFromStorage(repo, manifest.MediaType, manifest.Digest,
+				manifestBlob, imageStore, log)
+			if err != nil {
+				return imageMeta, err
+			}
+
+			manifestList = append(manifestList, partialImageMeta.Manifests...)
+		}
+
+		imageMeta = mTypes.ImageMeta{
+			MediaType: ispec.MediaTypeImageIndex,
+			Index:     &indexContent,
+			Manifests: manifestList,
+			Size:      int64(len(blob)),
+			Digest:    digest,
+		}
+	default:
+		return imageMeta, nil
+	}
+
+	return imageMeta, nil
+}
+
+// SetMetadataFromInput tries to set manifest metadata and update repo metadata by adding the current tag
+// (in case the reference is a tag). The function expects image manifests and indexes (multi arch images).
+func SetImageMetaFromInput(ctx context.Context, repo, reference, mediaType string, digest godigest.Digest, blob []byte,
+	imageStore stypes.ImageStore, metaDB mTypes.MetaDB, log log.Logger,
+) error {
+	imageMeta, err := InitializeImageMetaFromStorage(repo, mediaType, digest, blob, imageStore, log)
+	if err != nil {
+		return err
+	}
+
+	for _, manigest := range imageMeta.Manifests {
+		isSig, sigType, signedManifestDigest := isSignature(reference, manigest.Manifest)
+
+		if !isSig {
+			continue
+		}
+
+		layers, err := GetSignatureLayersInfo(repo, reference, digest.String(), sigType,
+			blob, imageStore, log)
+		if err != nil {
 			return err
 		}
 
-		imageMeta = convert.GetImageIndexMeta(indexContent, int64(len(blob)), digest)
-	default:
+		err = metaDB.AddManifestSignature(repo, signedManifestDigest,
+			mTypes.SignatureMetadata{
+				SignatureType:   sigType,
+				SignatureDigest: digest.String(),
+				SignatureTag:    reference,
+				LayersInfo:      layers,
+			})
+		if err != nil {
+			log.Error().Err(err).Str("repository", repo).Str("tag", reference).
+				Str("manifestDigest", signedManifestDigest.String()).
+				Msg("failed set signature meta for signed image")
+
+			return err
+		}
+
+		err = metaDB.UpdateSignaturesValidity(ctx, repo, signedManifestDigest)
+		if err != nil {
+			log.Error().Err(err).Str("repository", repo).Str("reference", reference).Str("digest",
+				signedManifestDigest.String()).Msg("failed to verify signature validity for signed image")
+
+			return err
+		}
+
+		// Signatures are expected to have only 1 manifest, and we don't add them as references
+		// so the processing stops here and the functions returns early
 		return nil
 	}
 
-	err := metaDB.SetRepoReference(ctx, repo, reference, imageMeta)
+	err = metaDB.SetRepoReference(ctx, repo, reference, imageMeta)
 	if err != nil {
-		log.Error().Err(err).Str("component", "metadb").Msg("failed to set repo meta")
+		log.Error().Err(err).Str("repository", repo).Str("reference", reference).Msg("failed to set repo meta")
 
 		return err
 	}
