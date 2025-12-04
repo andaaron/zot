@@ -375,6 +375,14 @@ func MetricsAuthzHandler(ctlr *Controller) mux.MiddlewareFunc {
 			realm := ctlr.Config.GetRealm()
 			failDelay := authConfig.GetFailDelay()
 
+			// request comes from bearer authn, bypass it
+			authnMwCtx, err := reqCtx.GetAuthnMiddlewareContext(request.Context())
+			if err != nil || (authnMwCtx != nil && authnMwCtx.AuthnType == BEARER) {
+				next.ServeHTTP(response, request)
+
+				return
+			}
+
 			accessControlConfig := ctlr.Config.CopyAccessControlConfig()
 
 			if accessControlConfig == nil {

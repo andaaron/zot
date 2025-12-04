@@ -449,13 +449,27 @@ func bearerAuthHandler(ctlr *Controller) mux.MiddlewareFunc {
 
 			acCtrlr := NewAccessController(ctlr.Config)
 
-			// we want to bypass auth for mgmt route
+			// We want to bypass auth for mgmt route
 			isMgmtRequested := request.RequestURI == constants.FullMgmt
+
+			// We want to bypass auth for metrics route
+			// Always check default path (for minimal builds where route always exists)
+			isMetricsRequested := strings.HasPrefix(request.RequestURI, constants.DefaultMetricsExtensionRoute)
+			// Also check configured path if metrics is enabled (for full builds)
+			extensionsConfig := ctlr.Config.CopyExtensionsConfig()
+			if extensionsConfig.IsMetricsEnabled() {
+				prometheusConfig := extensionsConfig.GetMetricsPrometheusConfig()
+				metricsPath := prometheusConfig.GetPath()
+				isMetricsRequested = isMetricsRequested || strings.HasPrefix(request.RequestURI, metricsPath)
+			}
 
 			header := request.Header.Get("Authorization")
 
-			if isAuthorizationHeaderEmpty(request) && isMgmtRequested {
-				next.ServeHTTP(response, request)
+			if isAuthorizationHeaderEmpty(request) && (isMgmtRequested || isMetricsRequested) {
+				// Set context to indicate we bypassed authn for metrics/mgmt routes
+				// This allows authz handlers to know we bypassed authentication
+				amCtx := acCtrlr.getAuthnMiddlewareContext(BEARER, request)
+				next.ServeHTTP(response, request.WithContext(amCtx)) //nolint:contextcheck
 
 				return
 			}

@@ -3,6 +3,7 @@ package config
 import (
 	"time"
 
+	"zotregistry.dev/zot/v2/pkg/api/constants"
 	"zotregistry.dev/zot/v2/pkg/extensions/config/events"
 	"zotregistry.dev/zot/v2/pkg/extensions/config/sync"
 )
@@ -70,6 +71,15 @@ type MetricsConfig struct {
 
 type PrometheusConfig struct {
 	Path string // default is "/metrics"
+}
+
+// GetPath returns the metrics route path, defaulting to "/metrics" if not configured.
+func (p *PrometheusConfig) GetPath() string {
+	if p == nil || p.Path == "" {
+		return constants.DefaultMetricsExtensionRoute
+	}
+
+	return p.Path
 }
 
 type ScrubConfig struct {
