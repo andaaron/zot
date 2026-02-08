@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"slices"
@@ -171,12 +172,17 @@ func createObjectsStore(options createObjectStoreOpts) (
 		if endpoint := os.Getenv("GCSMOCK_ENDPOINT"); endpoint != "" {
 			url := strings.TrimSuffix(endpoint, "/") + "/storage/v1/b?project=test-project"
 			body := fmt.Sprintf(`{"name": "%s"}`, bucket)
-			_, err := resty.R().
+			resp, err := resty.R().
 				SetHeader("Content-Type", "application/json").
 				SetBody(body).
 				Post(url)
 			if err != nil {
 				panic(err)
+			}
+			// Check if bucket was created successfully or already exists
+			statusCode := resp.StatusCode()
+			if statusCode != http.StatusOK && statusCode != http.StatusCreated && statusCode != http.StatusConflict {
+				panic(fmt.Errorf("failed to create bucket %s: status %d, body: %s", bucket, statusCode, resp.String()))
 			}
 		}
 

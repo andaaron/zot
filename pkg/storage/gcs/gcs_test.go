@@ -97,7 +97,13 @@ func createObjectsStore(rootDir string, cacheDir string, dedupe bool) (
 	if err != nil {
 		return nil, nil, err
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+
+	// Check if bucket was created successfully or already exists
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusConflict {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, nil, fmt.Errorf("failed to create bucket %s: status %d, body: %s", bucket, resp.StatusCode, string(respBody))
+	}
 
 	storageDriverParams := map[string]any{
 		"rootDir": rootDir,
