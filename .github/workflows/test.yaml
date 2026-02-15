@@ -47,8 +47,8 @@ jobs:
           DYNAMODBMOCK_ENDPOINT: http://localhost:4566
           AWS_ACCESS_KEY_ID: fake
           AWS_SECRET_ACCESS_KEY: fake
-          GCSMOCK_ENDPOINT: http://localhost:4443/
-          STORAGE_EMULATOR_HOST: localhost:4443
+          GCSMOCK_ENDPOINT: http://localhost:9000/
+          STORAGE_EMULATOR_HOST: localhost:9000
       - name: upload coverage
         uses: actions/upload-artifact@v6
         with:
@@ -90,8 +90,8 @@ jobs:
           DYNAMODBMOCK_ENDPOINT: http://localhost:4566
           AWS_ACCESS_KEY_ID: fake
           AWS_SECRET_ACCESS_KEY: fake
-          GCSMOCK_ENDPOINT: http://localhost:4443/
-          STORAGE_EMULATOR_HOST: localhost:4443
+          GCSMOCK_ENDPOINT: http://localhost:9000/
+          STORAGE_EMULATOR_HOST: localhost:9000
       - name: upload coverage
         uses: actions/upload-artifact@v6
         with:

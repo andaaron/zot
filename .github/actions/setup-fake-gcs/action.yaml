@@ -1,10 +1,21 @@
-name: 'Setup fake-gcs-server'
-description: 'Download & run fake-gcs-server container'
+name: 'Setup storage-testbench'
+description: 'Download & run Google Cloud Storage testbench container'
 runs:
   using: "composite"
   steps:
     - shell: bash
       run: |
-        docker run -d --name fake-gcs-server -p 4443:4443 -v ${{ github.workspace }}/examples/gcs-data:/data fsouza/fake-gcs-server:1.53.1 -scheme http
-        echo "Waiting for fake-gcs-server..."
-        timeout 30s bash -c 'until curl -s http://localhost:4443/storage/v1/b; do sleep 1; done'
+        docker run -d --name storage-testbench -p 9000:9000 -p 9090:9090 gcr.io/cloud-devrel-public-resources/storage-testbench:v0.60.0
+        echo "Waiting for storage-testbench..."
+        timeout 30s bash -c 'until curl -s http://localhost:9000/storage/v1/b; do sleep 1; done'
+        # The distribution registry GCS driver hardcodes www.googleapis.com for resumable uploads
+        # and uses oauth2.googleapis.com for OAuth2 token requests
+        # Redirect these to localhost so they use the emulator
+        echo "127.0.0.1 www.googleapis.com" | sudo tee -a /etc/hosts
+        echo "127.0.0.1 storage.googleapis.com" | sudo tee -a /etc/hosts
+        echo "127.0.0.1 oauth2.googleapis.com" | sudo tee -a /etc/hosts
+        # Start mock OAuth2 server using the helper script
+        cd "${GITHUB_WORKSPACE:-.}/test/gcs"
+        bash start-mock-oauth2.sh
+        # Wait a moment for server to start
+        sleep 2

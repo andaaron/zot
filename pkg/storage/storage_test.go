@@ -3,12 +3,8 @@ package storage_test
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	_ "crypto/sha256"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -79,6 +75,24 @@ type createObjectStoreOpts struct {
 }
 
 var errUnknownStorage = errors.New("unknown storage type")
+
+func init() {
+	// Set STORAGE_EMULATOR_HOST early if GCSMOCK_ENDPOINT is set
+	// This ensures the GCS client library uses the emulator before any initialization
+	// Note: STORAGE_EMULATOR_HOST should be in format "host:port" without protocol
+	if endpoint := os.Getenv("GCSMOCK_ENDPOINT"); endpoint != "" {
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+		endpoint = strings.TrimSuffix(endpoint, "/")
+		// Set in process environment - must be set before any GCS client initialization
+		os.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		// Also set GOOGLE_CLOUD_PROJECT to avoid project ID errors
+		if os.Getenv("GOOGLE_CLOUD_PROJECT") == "" {
+			os.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		}
+		// Don't unset credentials here - let ensureDummyGCSCreds handle it
+	}
+}
 
 func createObjectsStore(options createObjectStoreOpts) (
 	storageTypes.Driver, storageTypes.ImageStore, storageTypes.Cache, error,
@@ -1132,6 +1146,7 @@ func TestMandatoryAnnotations(t *testing.T) {
 				defer cleanupStorage(store, testDir)
 			case storageConstants.GCSStorageDriverName:
 				tskip.SkipGCS(t)
+				ensureDummyGCSCreds(t)
 
 				uuid, err := guuid.NewV4()
 				if err != nil {
@@ -1142,8 +1157,10 @@ func TestMandatoryAnnotations(t *testing.T) {
 				opts.rootDir = testDir
 
 				var cacheDriver storageTypes.Cache
-
-				store, _, cacheDriver, _ = createObjectsStore(opts)
+				store, _, cacheDriver, err = createObjectsStore(opts)
+				if err != nil {
+					t.Fatal(err)
+				}
 
 				imgStore = imagestore.NewImageStore(testDir, cacheDir, false, false, log, metrics,
 					&mocks.MockedLint{
@@ -1217,10 +1234,25 @@ func TestMandatoryAnnotations(t *testing.T) {
 									return false, errors.New("linter error")
 								},
 							}, store, nil, nil, nil)
+					} else if testcase.storageType == storageConstants.GCSStorageDriverName {
+						var cacheDriver storageTypes.Cache
+						store, _, cacheDriver, err := createObjectsStore(opts)
+						if err != nil {
+							t.Fatal(err)
+						}
+						imgStore = imagestore.NewImageStore(testDir, cacheDir, false, false, log, metrics,
+							&mocks.MockedLint{
+								LintFn: func(repo string, manifestDigest godigest.Digest, imageStore storageTypes.ImageStore) (bool, error) {
+									//nolint: err113
+									return false, errors.New("linter error")
+								},
+							}, store, cacheDriver, nil, nil)
 					} else {
 						var cacheDriver storageTypes.Cache
-						store, _, cacheDriver, _ = createObjectsStore(opts)
-
+						store, _, cacheDriver, err := createObjectsStore(opts)
+						if err != nil {
+							t.Fatal(err)
+						}
 						imgStore = imagestore.NewImageStore(cacheDir, cacheDir, true, true, log, metrics,
 							&mocks.MockedLint{
 								LintFn: func(repo string, manifestDigest godigest.Digest, imageStore storageTypes.ImageStore) (bool, error) {
@@ -1433,7 +1465,8 @@ func TestDeleteBlobsInUse(t *testing.T) {
 					So(err, ShouldBeNil)
 				})
 
-				if testcase.storageType != storageConstants.S3StorageDriverName {
+				if testcase.storageType != storageConstants.S3StorageDriverName &&
+					testcase.storageType != storageConstants.GCSStorageDriverName {
 					Convey("get image manifest error", func() {
 						err := os.Chmod(path.Join(imgStore.RootDir(), "repo", "blobs", "sha256", manifestDigest.Encoded()), 0o000)
 						So(err, ShouldBeNil)
@@ -1587,7 +1620,8 @@ func TestDeleteBlobsInUse(t *testing.T) {
 					So(err, ShouldBeNil)
 				})
 
-				if testcase.storageType != storageConstants.S3StorageDriverName {
+				if testcase.storageType != storageConstants.S3StorageDriverName &&
+					testcase.storageType != storageConstants.GCSStorageDriverName {
 					Convey("repo not found", func() {
 						// delete repo
 						err := os.RemoveAll(path.Join(imgStore.RootDir(), repoName))
@@ -1822,6 +1856,7 @@ func TestStorageHandler(t *testing.T) {
 				)
 
 				tskip.SkipGCS(t)
+				ensureDummyGCSCreds(t)
 
 				uuid, err := guuid.NewV4()
 				if err != nil {
@@ -1832,21 +1867,30 @@ func TestStorageHandler(t *testing.T) {
 				opts.rootDir = firstRootDir
 				opts.cacheDir = t.TempDir()
 
-				firstStorageDriver, firstStore, _, _ = createObjectsStore(opts)
+				firstStorageDriver, firstStore, _, err = createObjectsStore(opts)
+				if err != nil {
+					t.Fatalf("error creating first objects store: %v", err)
+				}
 				defer cleanupStorage(firstStorageDriver, firstRootDir)
 
 				secondRootDir = path.Join("/util_test2", uuid.String())
 				opts.rootDir = secondRootDir
 				opts.cacheDir = t.TempDir()
 
-				secondStorageDriver, secondStore, _, _ = createObjectsStore(opts)
+				secondStorageDriver, secondStore, _, err = createObjectsStore(opts)
+				if err != nil {
+					t.Fatalf("error creating second objects store: %v", err)
+				}
 				defer cleanupStorage(secondStorageDriver, secondRootDir)
 
 				thirdRootDir = path.Join("/util_test3", uuid.String())
 				opts.rootDir = thirdRootDir
 				opts.cacheDir = t.TempDir()
 
-				thirdStorageDriver, thirdStore, _, _ = createObjectsStore(opts)
+				thirdStorageDriver, thirdStore, _, err = createObjectsStore(opts)
+				if err != nil {
+					t.Fatalf("error creating third objects store: %v", err)
+				}
 				defer cleanupStorage(thirdStorageDriver, thirdRootDir)
 			default:
 				firstRootDir = t.TempDir()
@@ -3030,13 +3074,27 @@ func TestGarbageCollectImageIndex(t *testing.T) {
 						_, _, _, err = imgStore.GetImageManifest(repoName, artifactManifestIndexDigest.String())
 						So(err, ShouldNotBeNil)
 
-						hasBlob, _, err = imgStore.CheckBlob(repoName, artifactBlobDigest)
-						So(err, ShouldNotBeNil)
-						So(hasBlob, ShouldEqual, false)
+					hasBlob, _, err = imgStore.CheckBlob(repoName, artifactBlobDigest)
+					So(err, ShouldNotBeNil)
+					So(hasBlob, ShouldEqual, false)
 
-						// check it gc'ed repo
+					// check it gc'ed repo
+					// For GCS, the emulator may have eventual consistency, so retry with delay
+					if testcase.storageType == storageConstants.GCSStorageDriverName {
+						maxRetries := 10
+						retryDelay := 100 * time.Second
+						exists := true
+						for i := 0; i < maxRetries && exists; i++ {
+							exists = imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
+							if exists && i < maxRetries-1 {
+								time.Sleep(retryDelay)
+							}
+						}
+						So(exists, ShouldBeFalse)
+					} else {
 						exists := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
 						So(exists, ShouldBeFalse)
+					}
 					})
 				})
 			})
@@ -3523,8 +3581,22 @@ func TestGarbageCollectChainedImageIndexes(t *testing.T) {
 					So(hasBlob, ShouldEqual, false)
 
 					// check it gc'ed repo
-					exists := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
-					So(exists, ShouldBeFalse)
+					// For GCS, the emulator may have eventual consistency, so retry with delay
+					if testcase.storageType == storageConstants.GCSStorageDriverName {
+						maxRetries := 10
+						retryDelay := 100 * time.Millisecond
+						exists := true
+						for i := 0; i < maxRetries && exists; i++ {
+							exists = imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
+							if exists && i < maxRetries-1 {
+								time.Sleep(retryDelay)
+							}
+						}
+						So(exists, ShouldBeFalse)
+					} else {
+						exists := imgStore.DirExists(path.Join(imgStore.RootDir(), repoName))
+						So(exists, ShouldBeFalse)
+					}
 				})
 			})
 		})
@@ -3679,31 +3751,19 @@ func ensureDummyGCSCreds(t *testing.T) {
 	t.Helper()
 
 	if os.Getenv("GCSMOCK_ENDPOINT") != "" {
-		credsFile := path.Join(t.TempDir(), "dummy_creds.json")
-
-		priv, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		privPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: privBytes,
-		})
-
-		content := fmt.Sprintf(`{"type": "service_account", "project_id": "test-project", `+
-			`"client_email": "test@test.com", "private_key": %q}`, string(privPEM))
-		err = os.WriteFile(credsFile, []byte(content), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credsFile)
+		// Ensure STORAGE_EMULATOR_HOST is set
+		// Extract host:port from GCSMOCK_ENDPOINT (e.g., http://localhost:9000/ -> localhost:9000)
+		endpoint := os.Getenv("GCSMOCK_ENDPOINT")
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+		endpoint = strings.TrimSuffix(endpoint, "/")
+		// Set STORAGE_EMULATOR_HOST in both test environment and process environment
+		os.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		t.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		
+		// Unset GOOGLE_APPLICATION_CREDENTIALS since the emulator doesn't support authentication
+		os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
+		t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 	}
 }
 

@@ -136,6 +136,13 @@ func (gc GarbageCollect) cleanRepo(ctx context.Context, repo string) error {
 	*/
 	index, err := common.GetIndex(gc.imgStore, repo, gc.log)
 	if err != nil {
+		// If the repo or index.json doesn't exist, there's nothing to clean up
+		if errors.Is(err, zerr.ErrRepoNotFound) {
+			gc.log.Debug().Str("module", "gc").Str("repository", repo).Msg("repo or index.json not found, nothing to clean up")
+
+			return nil
+		}
+
 		gc.log.Error().Err(err).Str("module", "gc").Str("repository", repo).Msg("failed to read index.json in repo")
 
 		return err
@@ -160,14 +167,115 @@ func (gc GarbageCollect) cleanRepo(ctx context.Context, repo string) error {
 		}
 	}
 
+	// Check if index is empty (no manifests) AFTER updating it
+	// We need to check the index again after it's been written, as it might have been
+	// updated by removeManifestsPerRepoPolicy
+	indexAfterUpdate, err := common.GetIndex(gc.imgStore, repo, gc.log)
+	if err != nil {
+		// If we can't read the index, treat it as not empty to be safe
+		gc.log.Warn().Err(err).Str("module", "gc").Str("repository", repo).
+			Msg("failed to read index after update, assuming not empty")
+		indexAfterUpdate = index
+	}
+	
+	indexEmpty := len(indexAfterUpdate.Manifests) == 0
+	gc.log.Debug().Str("module", "gc").Str("repository", repo).
+		Bool("indexEmpty", indexEmpty).Int("manifestCount", len(indexAfterUpdate.Manifests)).
+		Msg("checking if index is empty before GC")
+
 	// gc unreferenced blobs
-	if err := gc.removeUnreferencedBlobs(repo, gc.opts.Delay, gc.log); err != nil {
+	if err := gc.removeUnreferencedBlobs(repo, gc.opts.Delay, gc.log, indexEmpty); err != nil {
 		return err
 	}
 
 	// gc old blob uploads
 	if err := gc.removeBlobUploads(repo, gc.opts.Delay); err != nil {
 		return err
+	}
+
+	// Final check: if index is empty after all GC operations, we should remove the repo
+	// This is important because manifests might be removed during blob GC or other operations
+	finalIndex, err := common.GetIndex(gc.imgStore, repo, gc.log)
+	if err != nil {
+		// If we can't read the index, it might be gone already (which is fine)
+		var pathNotFoundErr driver.PathNotFoundError
+		if errors.As(err, &pathNotFoundErr) || errors.Is(err, zerr.ErrRepoNotFound) {
+			gc.log.Debug().Str("module", "gc").Str("repository", repo).
+				Msg("index not found after GC, repo may already be deleted")
+			return nil
+		}
+		// Other errors should be propagated
+		return err
+	}
+
+	finalIndexEmpty := len(finalIndex.Manifests) == 0
+	
+	// Log details about remaining manifests for debugging
+	if !finalIndexEmpty {
+		for _, manifest := range finalIndex.Manifests {
+			tag := manifest.Annotations[ispec.AnnotationRefName]
+			
+			// Check if it's an image index
+			isImageIndex := manifest.MediaType == ispec.MediaTypeImageIndex ||
+				compat.IsCompatibleManifestListMediaType(manifest.MediaType)
+			
+			// Get blob modification time to determine when it was created
+			var modtime time.Time
+			var blobAge time.Duration
+			var withinRetentionDelay bool
+			var canGC bool
+			_, _, modtime, err := gc.imgStore.StatBlob(repo, manifest.Digest)
+			if err != nil {
+				gc.log.Warn().Err(err).Str("module", "gc").Str("repository", repo).
+					Str("digest", manifest.Digest.String()).
+					Msg("failed to stat remaining manifest blob")
+			} else {
+				blobAge = time.Since(modtime)
+				// Check if it's within GC retention delay
+				withinRetentionDelay = modtime.Add(gc.opts.ImageRetention.Delay).After(time.Now())
+				// Check if it can be GC'd (older than delay)
+				var canGCErr error
+				canGC, canGCErr = isBlobOlderThan(gc.imgStore, repo, manifest.Digest, gc.opts.ImageRetention.Delay, gc.log)
+				if canGCErr != nil {
+					gc.log.Warn().Err(canGCErr).Str("module", "gc").Str("repository", repo).
+						Str("digest", manifest.Digest.String()).
+						Msg("failed to check if remaining manifest blob can be GC'd")
+					canGC = false
+				}
+			}
+			
+			gc.log.Debug().Str("module", "gc").Str("repository", repo).
+				Str("digest", manifest.Digest.String()).
+				Str("mediaType", manifest.MediaType).
+				Bool("isImageIndex", isImageIndex).
+				Str("tag", tag).
+				Bool("hasTag", tag != "").
+				Str("blobModTime", modtime.Format(time.RFC3339Nano)).
+				Dur("blobAge", blobAge).
+				Dur("gcRetentionDelay", gc.opts.ImageRetention.Delay).
+				Bool("withinRetentionDelay", withinRetentionDelay).
+				Bool("canGC", canGC).
+				Msg("remaining manifest in index after GC - detailed analysis")
+		}
+	}
+	
+	gc.log.Debug().Str("module", "gc").Str("repository", repo).
+		Bool("finalIndexEmpty", finalIndexEmpty).Int("finalManifestCount", len(finalIndex.Manifests)).
+		Msg("final index check after all GC operations")
+
+	// If the index is empty, remove the repo directory by calling CleanupRepo with removeRepo=true
+	// This ensures proper cleanup of index.json, oci-layout, and the repo directory
+	if finalIndexEmpty {
+		gc.log.Info().Str("module", "gc").Str("repository", repo).
+			Msg("index is empty after GC, removing repo directory")
+		
+		// Call CleanupRepo with an empty blob list and removeRepo=true to delete the repo
+		// This will handle deleting index.json, oci-layout, and the repo directory
+		_, err := gc.imgStore.CleanupRepo(repo, []godigest.Digest{}, true)
+		if err != nil {
+			gc.log.Warn().Err(err).Str("module", "gc").Str("repository", repo).
+				Msg("failed to remove empty repo directory")
+		}
 	}
 
 	return nil
@@ -655,7 +763,7 @@ func (gc GarbageCollect) removeBlobUploads(repo string, delay time.Duration) err
 }
 
 // removeUnreferencedBlobs gc all blobs which are not referenced by any manifest found in repo's index.json.
-func (gc GarbageCollect) removeUnreferencedBlobs(repo string, delay time.Duration, log zlog.Logger,
+func (gc GarbageCollect) removeUnreferencedBlobs(repo string, delay time.Duration, log zlog.Logger, indexEmpty bool,
 ) error {
 	gc.log.Debug().Str("module", "gc").Str("repository", repo).Msg("cleaning orphan blobs")
 
@@ -667,6 +775,14 @@ func (gc GarbageCollect) removeUnreferencedBlobs(repo string, delay time.Duratio
 
 		return err
 	}
+
+	// Check if index is actually empty (the parameter might be stale)
+	// Use the actual index state, not just the parameter
+	actualIndexEmpty := len(index.Manifests) == 0
+	gc.log.Debug().Str("module", "gc").Str("repository", repo).
+		Bool("indexEmptyParam", indexEmpty).Bool("actualIndexEmpty", actualIndexEmpty).
+		Int("indexManifestCount", len(index.Manifests)).
+		Msg("removeUnreferencedBlobs: index state")
 
 	err = gc.addIndexBlobsToReferences(repo, index, refBlobs)
 	if err != nil {
@@ -712,8 +828,18 @@ func (gc GarbageCollect) removeUnreferencedBlobs(repo string, delay time.Duratio
 		}
 	}
 
-	// if we removed all blobs from repo
-	removeRepo := len(gcBlobs) > 0 && len(gcBlobs) == len(allBlobs)
+	// if we removed all blobs from repo, OR if the index is empty (no manifests)
+	// and we're GC'ing all unreferenced blobs (all blobs that are old enough to GC)
+	// Note: if index is empty, all blobs are unreferenced, so we GC all that are old enough
+	// Use actualIndexEmpty (from the index we just read) instead of the parameter
+	removeRepo := (len(gcBlobs) > 0 && len(gcBlobs) == len(allBlobs)) ||
+		(actualIndexEmpty && len(gcBlobs) > 0)
+	
+	gc.log.Debug().Str("module", "gc").Str("repository", repo).
+		Bool("removeRepo", removeRepo).Bool("indexEmptyParam", indexEmpty).
+		Bool("actualIndexEmpty", actualIndexEmpty).
+		Int("gcBlobs", len(gcBlobs)).Int("allBlobs", len(allBlobs)).
+		Msg("removeUnreferencedBlobs: removeRepo decision")
 
 	reaped, err := gc.imgStore.CleanupRepo(repo, gcBlobs, removeRepo)
 	if err != nil {

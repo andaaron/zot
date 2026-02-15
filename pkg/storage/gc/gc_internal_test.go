@@ -328,7 +328,7 @@ func TestGarbageCollectWithMockedImageStore(t *testing.T) {
 				},
 			}, gcOptions, audit, log)
 
-			err := gc.removeUnreferencedBlobs("repo", time.Hour, log)
+			err := gc.removeUnreferencedBlobs("repo", time.Hour, log, false)
 			So(err, ShouldNotBeNil)
 		})
 

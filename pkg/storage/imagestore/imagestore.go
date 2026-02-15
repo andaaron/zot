@@ -727,6 +727,17 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 		return err
 	}
 
+	// Log deletion details for debugging
+	tag := manifestDesc.Annotations[ispec.AnnotationRefName]
+	is.log.Debug().Str("module", "imagestore").Str("repository", repo).
+		Str("reference", reference).
+		Str("removedDigest", manifestDesc.Digest.String()).
+		Str("removedTag", tag).
+		Str("removedMediaType", manifestDesc.MediaType).
+		Bool("isDigestReference", zcommon.IsDigest(reference)).
+		Int("remainingManifests", len(index.Manifests)).
+		Msg("DeleteImageManifest: removed manifest from index")
+
 	/* check if manifest is referenced in image indexes, do not allow index images manipulations
 	(ie. remove manifest being part of an image index)	*/
 	if zcommon.IsDigest(reference) &&
@@ -745,6 +756,18 @@ func (is *ImageStore) deleteImageManifest(repo, reference string, detectCollisio
 	err = common.UpdateIndexWithPrunedImageManifests(is, &index, repo, manifestDesc, manifestDesc.Digest, is.log)
 	if err != nil {
 		return err
+	}
+
+	// Log remaining manifests after UpdateIndexWithPrunedImageManifests
+	for _, remaining := range index.Manifests {
+		remainingTag := remaining.Annotations[ispec.AnnotationRefName]
+		is.log.Debug().Str("module", "imagestore").Str("repository", repo).
+			Str("reference", reference).
+			Str("remainingDigest", remaining.Digest.String()).
+			Str("remainingTag", remainingTag).
+			Str("remainingMediaType", remaining.MediaType).
+			Bool("hasTag", remainingTag != "").
+			Msg("DeleteImageManifest: manifest remaining in index after deletion")
 	}
 
 	// now update "index.json"
@@ -1630,7 +1653,8 @@ func (is *ImageStore) GetIndexContent(repo string) ([]byte, error) {
 
 	buf, err := is.storeDriver.ReadFile(path.Join(dir, ispec.ImageIndexFile))
 	if err != nil {
-		if errors.Is(err, driver.PathNotFoundError{}) {
+		var pathNotFoundErr driver.PathNotFoundError
+		if errors.As(err, &pathNotFoundErr) {
 			is.log.Error().Err(err).Str("dir", dir).Msg("failed to read index.json")
 
 			return []byte{}, zerr.ErrRepoNotFound
@@ -1722,6 +1746,10 @@ func (is *ImageStore) CleanupRepo(repo string, blobs []godigest.Digest, removeRe
 				}
 
 				count++
+			} else if errors.Is(err, zerr.ErrBlobNotFound) {
+				// Blob doesn't exist (e.g., it was deduplicated to another repository)
+				// This is fine - the blob is already "deleted" from this repository's perspective
+				count++
 			} else {
 				is.log.Error().Err(err).Str("repository", repo).Str("digest", digest.String()).Msg("failed to delete blob")
 
@@ -1734,14 +1762,253 @@ func (is *ImageStore) CleanupRepo(repo string, blobs []godigest.Digest, removeRe
 
 	blobUploads, _ := is.ListBlobUploads(repo)
 
+	// Log the condition values for debugging
+	is.log.Debug().Str("repository", repo).
+		Bool("removeRepo", removeRepo).
+		Int("count", count).
+		Int("len(blobs)", len(blobs)).
+		Int("len(blobUploads)", len(blobUploads)).
+		Msg("CleanupRepo condition check")
+
 	// if removeRepo flag is true and we cleanup all blobs and there are no blobs currently being uploaded.
 	if removeRepo && count == len(blobs) && count > 0 && len(blobUploads) == 0 {
 		is.log.Info().Str("repository", repo).Msg("removed all blobs, removing repo")
 
-		if err := is.storeDriver.Delete(path.Join(is.rootDir, repo)); err != nil {
-			is.log.Error().Err(err).Str("repository", repo).Msg("failed to remove repo")
+		repoPath := path.Join(is.rootDir, repo)
+		
+		// Check what's in the directory before deletion
+		if items, err := is.storeDriver.List(repoPath); err == nil {
+			is.log.Debug().Str("repository", repo).Str("items", strings.Join(items, ", ")).
+				Int("count", len(items)).Msg("items in repo directory before deletion")
+		} else {
+			var pathNotFoundErr driver.PathNotFoundError
+			if errors.As(err, &pathNotFoundErr) {
+				is.log.Debug().Str("repository", repo).Msg("repo directory not found (already empty)")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).Msg("failed to list repo directory before deletion")
+			}
+		}
 
-			return count, err
+		// Delete index.json and oci-layout first (for cloud storage like GCS, directories are just prefixes,
+		// so we need to delete all objects before the directory can be considered deleted)
+		indexPath := path.Join(is.rootDir, repo, ispec.ImageIndexFile)
+		is.log.Debug().Str("repository", repo).Str("indexPath", indexPath).Msg("attempting to delete index.json")
+		if err := is.storeDriver.Delete(indexPath); err != nil {
+			// If index.json doesn't exist, that's fine - continue with directory deletion
+			var pathNotFoundErr driver.PathNotFoundError
+			if errors.As(err, &pathNotFoundErr) {
+				is.log.Debug().Str("repository", repo).Str("indexPath", indexPath).
+					Msg("index.json not found (already deleted)")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).Str("indexPath", indexPath).
+					Msg("failed to remove index.json, continuing with repo deletion")
+			}
+		} else {
+			is.log.Debug().Str("repository", repo).Str("indexPath", indexPath).Msg("successfully deleted index.json")
+		}
+
+		// Delete oci-layout file
+		layoutPath := path.Join(is.rootDir, repo, ispec.ImageLayoutFile)
+		is.log.Debug().Str("repository", repo).Str("layoutPath", layoutPath).Msg("attempting to delete oci-layout")
+		if err := is.storeDriver.Delete(layoutPath); err != nil {
+			// If oci-layout doesn't exist, that's fine - continue with directory deletion
+			var pathNotFoundErr driver.PathNotFoundError
+			if errors.As(err, &pathNotFoundErr) {
+				is.log.Debug().Str("repository", repo).Str("layoutPath", layoutPath).
+					Msg("oci-layout not found (already deleted)")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).Str("layoutPath", layoutPath).
+					Msg("failed to remove oci-layout, continuing with repo deletion")
+			}
+		} else {
+			is.log.Debug().Str("repository", repo).Str("layoutPath", layoutPath).Msg("successfully deleted oci-layout")
+		}
+
+		// Check what's in the directory after deleting index.json
+		if items, err := is.storeDriver.List(repoPath); err == nil {
+			is.log.Debug().Str("repository", repo).Str("items", strings.Join(items, ", ")).
+				Int("count", len(items)).Msg("items in repo directory after deleting index.json")
+		} else {
+			var pathNotFoundErr driver.PathNotFoundError
+			if errors.As(err, &pathNotFoundErr) {
+				is.log.Debug().Str("repository", repo).Msg("repo directory not found (empty after index.json deletion)")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).Msg("failed to list repo directory after deleting index.json")
+			}
+		}
+
+		// For cloud storage (like GCS), directories are just prefixes, so we need to delete
+		// all remaining objects before the directory can be considered deleted.
+		// Use an iterative approach with List to delete all objects, since Walk might not
+		// be reliable for all storage backends or might miss nested objects.
+		// Keep iterating until List returns empty or we hit a max iteration limit.
+		// Also break if all items are already deleted (List returns stale results but Stat fails for all items).
+		maxIterations := 10
+		for iteration := 0; iteration < maxIterations; iteration++ {
+			items, err := is.storeDriver.List(repoPath)
+			if err != nil {
+				var pathNotFoundErr driver.PathNotFoundError
+				if errors.As(err, &pathNotFoundErr) {
+					// Directory doesn't exist, we're done
+					is.log.Debug().Str("repository", repo).Int("iteration", iteration).
+						Msg("repo directory not found during iterative cleanup, done")
+					break
+				}
+				is.log.Warn().Err(err).Str("repository", repo).Int("iteration", iteration).
+					Msg("failed to list repo directory for cleanup, continuing")
+				break
+			}
+			
+			if len(items) == 0 {
+				// No more items, we're done
+				is.log.Debug().Str("repository", repo).Int("iteration", iteration).
+					Msg("no more items found during iterative cleanup, done")
+				break
+			}
+			
+			is.log.Debug().Str("repository", repo).Int("iteration", iteration).
+				Int("itemCount", len(items)).Msg("found items during iterative cleanup")
+			
+			// Delete all items found in this iteration
+			deletedCount := 0
+			failedCount := 0
+			alreadyDeletedCount := 0
+			for _, item := range items {
+				// Skip if it's the directory itself
+				if item == repoPath {
+					continue
+				}
+				
+				// Check if this item is a directory (for cloud storage, directories are just prefixes)
+				// If it looks like a directory, we need to recursively delete its contents
+				// For now, just try to delete it - if it's a directory, Delete might fail or succeed
+				// depending on the storage backend
+				if err := is.storeDriver.Delete(item); err != nil {
+					var pathNotFoundErr driver.PathNotFoundError
+					if errors.As(err, &pathNotFoundErr) {
+						// Item already deleted, count as success
+						deletedCount++
+						alreadyDeletedCount++
+						is.log.Debug().Str("repository", repo).Str("item", item).
+							Msg("item already deleted during iterative cleanup")
+					} else {
+						// Try to list this item to see if it's a directory with nested objects
+						if nestedItems, listErr := is.storeDriver.List(item); listErr == nil && len(nestedItems) > 0 {
+							// It's a directory with nested objects, recursively delete them
+							for _, nestedItem := range nestedItems {
+								if nestedErr := is.storeDriver.Delete(nestedItem); nestedErr != nil {
+									var nestedPathNotFoundErr driver.PathNotFoundError
+									if !errors.As(nestedErr, &nestedPathNotFoundErr) {
+										is.log.Warn().Err(nestedErr).Str("repository", repo).Str("nestedItem", nestedItem).
+											Msg("failed to delete nested item during iterative cleanup")
+									}
+								}
+							}
+							// Now try to delete the directory itself again
+							if retryErr := is.storeDriver.Delete(item); retryErr != nil {
+								var retryPathNotFoundErr driver.PathNotFoundError
+								if !errors.As(retryErr, &retryPathNotFoundErr) {
+									is.log.Warn().Err(retryErr).Str("repository", repo).Str("item", item).
+										Msg("failed to delete item after deleting nested objects during iterative cleanup")
+									failedCount++
+								} else {
+									deletedCount++
+									alreadyDeletedCount++
+								}
+							} else {
+								deletedCount++
+							}
+						} else {
+							// Not a directory or empty directory, just log the failure
+							is.log.Warn().Err(err).Str("repository", repo).Str("item", item).
+								Msg("failed to delete item during iterative cleanup")
+							failedCount++
+						}
+					}
+				} else {
+					deletedCount++
+					is.log.Debug().Str("repository", repo).Str("item", item).
+						Msg("successfully deleted item during iterative cleanup")
+				}
+			}
+			
+			is.log.Debug().Str("repository", repo).Int("iteration", iteration).
+				Int("deletedCount", deletedCount).Int("failedCount", failedCount).
+				Int("alreadyDeletedCount", alreadyDeletedCount).
+				Msg("iterative cleanup iteration completed")
+			
+			// If all items were already deleted (List returns stale results), break out
+			// This handles cases where the storage backend's List is cached but items are actually gone
+			if alreadyDeletedCount > 0 && alreadyDeletedCount == len(items) && failedCount == 0 {
+				is.log.Debug().Str("repository", repo).Int("iteration", iteration).
+					Int("alreadyDeletedCount", alreadyDeletedCount).
+					Msg("all items already deleted (List returned stale results), breaking out of cleanup loop")
+				break
+			}
+			
+			// If we didn't delete anything and there are still items, we might be stuck
+			if deletedCount == 0 && len(items) > 0 {
+				is.log.Warn().Str("repository", repo).Int("remainingItems", len(items)).
+					Msg("no items were deleted in this iteration, but items still exist - may be stuck")
+				break
+			}
+		}
+
+		// Now try to delete the repo directory
+		is.log.Debug().Str("repository", repo).Str("repoPath", repoPath).Msg("attempting to delete repo directory")
+		if err := is.storeDriver.Delete(repoPath); err != nil {
+			// If the repo doesn't exist (PathNotFoundError), that's fine - it's already "deleted"
+			var pathNotFoundErr driver.PathNotFoundError
+			if errors.As(err, &pathNotFoundErr) {
+				is.log.Debug().Str("repository", repo).Str("repoPath", repoPath).
+					Msg("repo already removed or doesn't exist")
+			} else {
+				is.log.Error().Err(err).Str("repository", repo).Str("repoPath", repoPath).
+					Msg("failed to remove repo directory")
+
+				return count, err
+			}
+		} else {
+			is.log.Debug().Str("repository", repo).Str("repoPath", repoPath).Msg("successfully deleted repo directory")
+		}
+
+		// Verify the directory is actually gone
+		// Use Stat first to check if the directory actually exists, as List may return stale results
+		_, statErr := is.storeDriver.Stat(repoPath)
+		var statPathNotFoundErr driver.PathNotFoundError
+		statNotFound := errors.As(statErr, &statPathNotFoundErr)
+		
+		// Also check DirExists (which may use List and return stale results)
+		dirExists := is.storeDriver.DirExists(repoPath)
+		
+		is.log.Debug().Str("repository", repo).Str("repoPath", repoPath).
+			Bool("dirExists", dirExists).Bool("statNotFound", statNotFound).
+			Msg("verifying repo directory deletion")
+		
+		// If Stat says the directory doesn't exist, it's actually gone (even if List/DirExists says otherwise)
+		if statNotFound {
+			is.log.Debug().Str("repository", repo).Str("repoPath", repoPath).
+				Msg("repo directory confirmed deleted (Stat returned PathNotFoundError)")
+		} else if dirExists {
+			// DirExists returned true, but Stat didn't return PathNotFoundError
+			// This could mean the directory still exists, or List is returning stale results
+			// Check what Stat returns
+			if fi, err := is.storeDriver.Stat(repoPath); err == nil {
+				is.log.Warn().Str("repository", repo).Str("repoPath", repoPath).
+					Bool("isDir", fi.IsDir()).Int64("size", fi.Size()).Str("path", fi.Path()).
+					Msg("repo directory still exists after deletion attempt")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).Str("repoPath", repoPath).
+					Msg("repo directory still exists but Stat failed")
+			}
+			// Check what's still in the directory
+			if items, err := is.storeDriver.List(repoPath); err == nil {
+				is.log.Warn().Str("repository", repo).Str("items", strings.Join(items, ", ")).
+					Int("count", len(items)).Msg("items still in repo directory after deletion attempt")
+			} else {
+				is.log.Warn().Err(err).Str("repository", repo).
+					Msg("failed to list repo directory after deletion attempt")
+			}
 		}
 	}
 

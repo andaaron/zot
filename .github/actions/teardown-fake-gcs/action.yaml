@@ -1,8 +1,18 @@
-name: 'Teardown fake-gcs-server'
-description: 'Stop & remove fake-gcs-server container'
+name: 'Teardown storage-testbench'
+description: 'Stop & remove storage-testbench container'
 runs:
   using: "composite"
   steps:
     - if: always()
       shell: bash
-      run: docker rm -f fake-gcs-server || true
+      run: |
+        docker rm -f storage-testbench || true
+        # Stop mock OAuth2 server using the helper script
+        cd "${GITHUB_WORKSPACE:-.}/test/gcs"
+        bash stop-mock-oauth2.sh || true
+        # Remove hosts file entries added for emulator
+        if command -v sudo >/dev/null 2>&1; then
+          sudo sed -i '/www\.googleapis\.com/d' /etc/hosts || true
+          sudo sed -i '/storage\.googleapis\.com/d' /etc/hosts || true
+          sudo sed -i '/oauth2\.googleapis\.com/d' /etc/hosts || true
+        fi

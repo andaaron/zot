@@ -3,11 +3,7 @@ package gcs_test
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -38,35 +34,41 @@ import (
 
 var errGCSMockEndpointNotSet = errors.New("GCSMOCK_ENDPOINT must be set for GCS tests")
 
+func init() {
+	// Set STORAGE_EMULATOR_HOST early if GCSMOCK_ENDPOINT is set
+	// This ensures the GCS client library uses the emulator before any initialization
+	// Note: STORAGE_EMULATOR_HOST should be in format "host:port" without protocol
+	if endpoint := os.Getenv("GCSMOCK_ENDPOINT"); endpoint != "" {
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+		endpoint = strings.TrimSuffix(endpoint, "/")
+		// Set in process environment - must be set before any GCS client initialization
+		os.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		// Also set GOOGLE_CLOUD_PROJECT to avoid project ID errors
+		if os.Getenv("GOOGLE_CLOUD_PROJECT") == "" {
+			os.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		}
+		// Don't unset credentials here - let ensureDummyGCSCreds handle it
+	}
+}
+
 func ensureDummyGCSCreds(t *testing.T) {
 	t.Helper()
 
 	if os.Getenv("GCSMOCK_ENDPOINT") != "" {
-		credsFile := path.Join(t.TempDir(), "dummy_creds.json")
-
-		priv, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		privPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: privBytes,
-		})
-
-		content := fmt.Sprintf(`{"type": "service_account", "project_id": "test-project", `+
-			`"client_email": "test@test.com", "private_key": %q}`, string(privPEM))
-		err = os.WriteFile(credsFile, []byte(content), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credsFile)
+		// Ensure STORAGE_EMULATOR_HOST is set
+		// Extract host:port from GCSMOCK_ENDPOINT (e.g., http://localhost:9000/ -> localhost:9000)
+		endpoint := os.Getenv("GCSMOCK_ENDPOINT")
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+		endpoint = strings.TrimSuffix(endpoint, "/")
+		// Set STORAGE_EMULATOR_HOST in both test environment and process environment
+		os.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		t.Setenv("STORAGE_EMULATOR_HOST", endpoint)
+		
+		// Unset GOOGLE_APPLICATION_CREDENTIALS since the emulator doesn't support authentication
+		os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
+		t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 	}
 }
 
@@ -218,12 +220,34 @@ func TestGCSDriver(t *testing.T) {
 			repoName := "test-repo-delete"
 			// Setup image
 			image := CreateDefaultImage()
-			cblob, _ := json.Marshal(image.Config)
+
+			// Upload layers first (required for manifest validation)
+			for _, content := range image.Layers {
+				upload, err := imgStore.NewBlobUpload(repoName)
+				So(err, ShouldBeNil)
+
+				buf := bytes.NewBuffer(content)
+				buflen := buf.Len()
+				digest := godigest.FromBytes(content)
+
+				blob, err := imgStore.PutBlobChunkStreamed(repoName, upload, buf)
+				So(err, ShouldBeNil)
+				So(blob, ShouldEqual, buflen)
+
+				err = imgStore.FinishBlobUpload(repoName, upload, buf, digest)
+				So(err, ShouldBeNil)
+			}
+
+			// Upload config
+			cblob, err := json.Marshal(image.Config)
+			So(err, ShouldBeNil)
 			cdigest := godigest.FromBytes(cblob)
-			_, _, err := imgStore.FullBlobUpload(repoName, bytes.NewBuffer(cblob), cdigest)
+			_, _, err = imgStore.FullBlobUpload(repoName, bytes.NewBuffer(cblob), cdigest)
 			So(err, ShouldBeNil)
 
-			mblob, _ := json.Marshal(image.Manifest)
+			// Upload manifest
+			mblob, err := json.Marshal(image.Manifest)
+			So(err, ShouldBeNil)
 			_, _, err = imgStore.PutImageManifest(repoName, "1.0", ispec.MediaTypeImageManifest, mblob)
 			So(err, ShouldBeNil)
 
@@ -457,9 +481,9 @@ func TestGCSPullRange(t *testing.T) {
 		err = blobReadCloser.Close()
 		So(err, ShouldBeNil)
 
-		// get range
+		// get range - "data3" is bytes 5-9 (inclusive) of "test-data3"
 		blobReadCloser, _, _, err = imgStore.GetBlobPartial("test", digest,
-			"application/vnd.oci.image.layer.v1.tar+gzip", 4, 5)
+			"application/vnd.oci.image.layer.v1.tar+gzip", 5, 9)
 		So(err, ShouldBeNil)
 		buf.Reset()
 		_, err = buf.ReadFrom(blobReadCloser)
