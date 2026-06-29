@@ -1746,7 +1746,7 @@ func (rh *RouteHandler) CreateBlobUpload(response http.ResponseWriter, request *
 
 	ctx := events.WithEventContext(request.Context(), eventContextFromRequest(request))
 
-	// currently zot does not support cross-repository mounting, following dist-spec and returning 202
+	// cross-repo mount when "mount" query parameter is present
 	if mountDigests, ok := request.URL.Query()["mount"]; ok {
 		if len(mountDigests) != 1 {
 			response.WriteHeader(http.StatusBadRequest)
@@ -1786,7 +1786,18 @@ func (rh *RouteHandler) CreateBlobUpload(response http.ResponseWriter, request *
 		}
 
 		if userCanMount {
-			_, _, err = imgStore.MountBlob(ctx, mountFrom, name, mountDigest)
+			if fromRepo != "" {
+				// Route mount through the source image store when "from" is set.
+				fromStore := rh.getImageStore(fromRepo)
+				if fromStore == imgStore {
+					_, _, err = imgStore.MountBlob(ctx, fromRepo, name, mountDigest)
+				} else {
+					// Cross-image-store mount requires controller-level copy (Option A).
+					err = zerr.ErrBlobNotFound
+				}
+			} else {
+				_, _, err = imgStore.MountBlob(ctx, mountFrom, name, mountDigest)
+			}
 		}
 
 		if err != nil || !userCanMount {
