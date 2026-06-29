@@ -1281,7 +1281,7 @@ func TestRoutes(t *testing.T) {
 					NewBlobUploadFn: func(ctx context.Context, repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
 					},
-					CheckBlobFn: func(ctx context.Context, repo string, digest godigest.Digest) (bool, int64, error) {
+					MountBlobFn: func(ctx context.Context, fromRepo, toRepo string, digest godigest.Digest) (bool, int64, error) {
 						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
@@ -1298,9 +1298,6 @@ func TestRoutes(t *testing.T) {
 					NewBlobUploadFn: func(ctx context.Context, repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
 					},
-					CheckBlobFn: func(ctx context.Context, repo string, digest godigest.Digest) (bool, int64, error) {
-						return true, 0, zerr.ErrRepoNotFound
-					},
 				})
 			So(statusCode, ShouldEqual, http.StatusBadRequest)
 
@@ -1315,9 +1312,6 @@ func TestRoutes(t *testing.T) {
 				&mocks.MockedImageStore{
 					NewBlobUploadFn: func(ctx context.Context, repo string) (string, error) {
 						return "", zerr.ErrRepoNotFound
-					},
-					CheckBlobFn: func(ctx context.Context, repo string, digest godigest.Digest) (bool, int64, error) {
-						return true, 0, zerr.ErrRepoNotFound
 					},
 				})
 			So(statusCode, ShouldEqual, http.StatusUnsupportedMediaType)

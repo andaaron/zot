@@ -5830,6 +5830,30 @@ func TestAuthorizationMountBlob(t *testing.T) {
 		resp, err = userClient2.R().SetQueryParams(params).Post(baseURL + "/v2/" + repoName2 + "/blobs/uploads/")
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusCreated)
+
+		// mount with explicit "from" to a new repo owned by user1
+		paramsWithFrom := map[string]string{
+			"mount": blobDigest.String(),
+			"from":  repoName1,
+		}
+		repoName3 := username1 + "/" + "mythirdrepo"
+		resp, err = userClient1.R().SetQueryParams(paramsWithFrom).Post(baseURL + "/v2/" + repoName3 + "/blobs/uploads/")
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusCreated)
+
+		// user2 cannot mount from user1's repo even with an explicit "from"
+		resp, err = userClient2.R().SetQueryParams(paramsWithFrom).Post(baseURL + "/v2/" + repoName2 + "/blobs/uploads/")
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusAccepted)
+
+		// user1 cannot mount a non-existent blob from a non-existent repo
+		nonExistentDigest := godigest.FromBytes([]byte("non-existent-blob-content"))
+		paramsWithFrom["mount"] = nonExistentDigest.String()
+		paramsWithFrom["from"] = username1 + "/nonexistent"
+		repoName4 := username1 + "/" + "myfourthrepo"
+		resp, err = userClient1.R().SetQueryParams(paramsWithFrom).Post(baseURL + "/v2/" + repoName4 + "/blobs/uploads/")
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusAccepted)
 	})
 }
 

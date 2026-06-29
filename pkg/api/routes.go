@@ -1010,33 +1010,43 @@ func (rh *RouteHandler) DeleteManifest(response http.ResponseWriter, request *ht
 	response.WriteHeader(http.StatusAccepted)
 }
 
-// canMount checks if a user has read permission on cached blobs with this specific digest.
-// returns true if the user have permission to copy blob from cache.
-func canMount(userAc *reqCtx.UserAccessControl, imgStore storageTypes.ImageStore, digest godigest.Digest,
-) (bool, error) {
-	canMount := true
+// mountAccess decides whether a cross-repo mount is permitted and which source
+// repository to mount from. Per distribution-spec, "from" is optional: when omitted
+// the registry may mount from any repository that contains the blob; when present the
+// blob must come from that repository. With authorization enabled, the caller must have
+// read access on the source — either the named "from" repository or at least one
+// dedupe candidate for anonymous mounts.
+func mountAccess(userAc *reqCtx.UserAccessControl, imgStore storageTypes.ImageStore, digest godigest.Digest,
+	fromRepo string, authzEnabled bool,
+) (allowed bool, sourceRepo string, err error) {
+	if !authzEnabled {
+		return true, fromRepo, nil
+	}
 
-	if userAc != nil {
-		canMount = false
+	if userAc == nil {
+		return false, "", nil
+	}
 
-		repos, err := imgStore.GetAllDedupeReposCandidates(digest)
-		if err != nil {
-			return false, err
+	if fromRepo != "" {
+		if userAc.Can(constants.ReadPermission, fromRepo) {
+			return true, fromRepo, nil
 		}
 
-		if len(repos) == 0 {
-			canMount = false
-		}
+		return false, "", nil
+	}
 
-		// check if user can read any repo which contain this blob
-		for _, repo := range repos {
-			if userAc.Can(constants.ReadPermission, repo) {
-				canMount = true
-			}
+	repos, err := imgStore.GetAllDedupeReposCandidates(digest)
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, repo := range repos {
+		if userAc.Can(constants.ReadPermission, repo) {
+			return true, repo, nil
 		}
 	}
 
-	return canMount, nil
+	return false, "", nil
 }
 
 // resolveBlobResponseMediaType resolves the OCI media type to advertise for a blob via
@@ -1746,6 +1756,20 @@ func (rh *RouteHandler) CreateBlobUpload(response http.ResponseWriter, request *
 
 		mountDigest := godigest.Digest(mountDigests[0])
 
+		// "from" optionally names the source repository (distribution-spec end-11).
+		// It may only appear once alongside "mount".
+		var fromRepo string
+
+		if fromRepos, ok := request.URL.Query()["from"]; ok {
+			if len(fromRepos) != 1 {
+				response.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
+
+			fromRepo = fromRepos[0]
+		}
+
 		userAc, err := reqCtx.UserAcFromContext(request.Context())
 		if err != nil {
 			response.WriteHeader(http.StatusInternalServerError)
@@ -1753,21 +1777,16 @@ func (rh *RouteHandler) CreateBlobUpload(response http.ResponseWriter, request *
 			return
 		}
 
-		userCanMount := true
 		accessControlConfig := rh.c.Config.CopyAccessControlConfig()
 
-		if accessControlConfig.IsAuthzEnabled() {
-			userCanMount, err = canMount(userAc, imgStore, mountDigest)
-			if err != nil {
-				rh.c.Log.Error().Err(err).Msg("unexpected error")
-			}
+		userCanMount, mountFrom, err := mountAccess(userAc, imgStore, mountDigest, fromRepo,
+			accessControlConfig.IsAuthzEnabled())
+		if err != nil {
+			rh.c.Log.Error().Err(err).Msg("unexpected error")
 		}
 
-		// zot does not support cross mounting directly and do a workaround creating using hard link.
-		// check blob looks for actual path (name+mountDigests[0]) first then look for cache and
-		// if found in cache, will do hard link and if fails we will start new upload.
 		if userCanMount {
-			_, _, err = imgStore.CheckBlob(ctx, name, mountDigest)
+			_, _, err = imgStore.MountBlob(ctx, mountFrom, name, mountDigest)
 		}
 
 		if err != nil || !userCanMount {

@@ -1424,6 +1424,55 @@ func (is *ImageStore) GetAllDedupeReposCandidates(digest godigest.Digest) ([]str
 	return repos, nil
 }
 
+// MountBlob materializes digest in toRepo for a cross-repository mount (POST ?mount=).
+// When fromRepo is empty (anonymous mount per distribution-spec) any cached copy may be
+// used. When fromRepo is set the blob must exist in that repository.
+func (is *ImageStore) MountBlob(ctx context.Context, fromRepo, toRepo string, digest godigest.Digest) (bool, int64, error) {
+	if fromRepo == "" {
+		return is.CheckBlob(ctx, toRepo, digest)
+	}
+
+	if err := digest.Validate(); err != nil {
+		return false, -1, err
+	}
+
+	var lockLatency time.Time
+
+	if is.dedupe && fmt.Sprintf("%v", is.cache) != fmt.Sprintf("%v", nil) {
+		is.Lock(&lockLatency)
+		defer is.Unlock(&lockLatency)
+	} else {
+		is.RLock(&lockLatency)
+		defer is.RUnlock(&lockLatency)
+	}
+
+	if binfo, err := is.originalBlobInfo(toRepo, digest); err == nil {
+		return true, binfo.Size(), nil
+	}
+
+	srcInfo, err := is.originalBlobInfo(fromRepo, digest)
+	if err != nil {
+		return false, -1, zerr.ErrBlobNotFound
+	}
+
+	toBlobPath := is.BlobPath(toRepo, digest)
+
+	blobSize, err := is.copyBlob(ctx, toRepo, toBlobPath, srcInfo.Path())
+	if err != nil {
+		return false, -1, zerr.ErrBlobNotFound
+	}
+
+	if is.cache != nil {
+		if err := is.cache.PutBlob(digest, toBlobPath); err != nil {
+			is.log.Error().Err(err).Str("blobPath", toBlobPath).Str("component", "dedupe").Msg("failed to insert blob record")
+
+			return false, -1, err
+		}
+	}
+
+	return true, blobSize, nil
+}
+
 // CheckBlob verifies a blob and returns true if the blob is correct.
 // If the blob is not found but it's found in cache then it will be copied over.
 func (is *ImageStore) CheckBlob(ctx context.Context, repo string, digest godigest.Digest) (bool, int64, error) {
