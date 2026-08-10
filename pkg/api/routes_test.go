@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -2435,6 +2436,13 @@ func descriptorStore(t *testing.T) mocks.MockedImageStore {
 
 			return true, 0, nil
 		},
+		StatBlobFn: func(repo string, digest godigest.Digest) (bool, int64, time.Time, error) {
+			if digest == layerDigest {
+				return true, 4, time.Time{}, nil
+			}
+
+			return true, 0, time.Time{}, nil
+		},
 		GetIndexContentFn: func(repo string) ([]byte, error) {
 			return indexJSON, nil
 		},
@@ -3400,12 +3408,12 @@ func TestGetBlobMultipartShortReaderTruncates(t *testing.T) {
 }
 
 func TestGetBlobRangeCheckBlobNamedErrors(t *testing.T) {
-	// CheckBlob is the first storage call on the range branch and the
-	// only place where named storage errors can be turned into proper
-	// 4xx OCI error responses (once the 206 is in flight on the
-	// multipart path it's too late). Each case in the table maps a
-	// zerr.* return to the OCI status code + error code the handler
-	// must produce via writeBlobError.
+	// CheckBlob is the first storage call on the range branch when mount is
+	// allowed (authz off / canMount true) and the only place where named
+	// storage errors can be turned into proper 4xx OCI error responses
+	// (once the 206 is in flight on the multipart path it's too late).
+	// Each case in the table maps a zerr.* return to the OCI status code +
+	// error code the handler must produce via writeBlobError.
 	type expect struct {
 		status int
 		code   string

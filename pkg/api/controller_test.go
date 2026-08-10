@@ -5686,6 +5686,14 @@ func TestAuthorizationMountBlob(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
 
+		/* ranged GET must not mount from the global cache either:
+		same digest under user2's empty repo stays 404. */
+		resp, err = userClient2.R().
+			SetHeader("Range", "bytes=0-7").
+			Get(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", repoName2, blobDigest))
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
+
 		params := make(map[string]string)
 		params["mount"] = blobDigest.String()
 
@@ -5696,10 +5704,19 @@ func TestAuthorizationMountBlob(t *testing.T) {
 		So(resp.StatusCode(), ShouldEqual, http.StatusAccepted)
 
 		/* a HEAD request by user1 on blob digest (found in user1Repo) should return 200
-		because user1 has permission to read user1Repo */
-		resp, err = userClient1.R().Head(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", username1+"/"+"mysecondrepo", blobDigest))
+		because user1 has permission to read user1Repo and create into mysecondrepo */
+		secondRepo := username1 + "/" + "mysecondrepo"
+		resp, err = userClient1.R().Head(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", secondRepo, blobDigest))
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusOK)
+
+		/* same permissions allow ranged GET to mount into another empty repo owned by user1 */
+		thirdRepo := username1 + "/" + "mythirdrepo"
+		resp, err = userClient1.R().
+			SetHeader("Range", "bytes=0-0").
+			Get(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", thirdRepo, blobDigest))
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusPartialContent)
 
 		// user2 can upload without dedupe
 		err = UploadImageWithBasicAuth(img, baseURL, repoName2, tag, username2, password2)
@@ -5709,6 +5726,99 @@ func TestAuthorizationMountBlob(t *testing.T) {
 		resp, err = userClient2.R().SetQueryParams(params).Post(baseURL + "/v2/" + repoName2 + "/blobs/uploads/")
 		So(err, ShouldBeNil)
 		So(resp.StatusCode(), ShouldEqual, http.StatusCreated)
+	})
+}
+
+func TestAuthorizationReadOnlyCannotMaterializeBlob(t *testing.T) {
+	Convey("Read-only / defaultPolicy read must not create repos via HEAD or ranged GET", t, func() {
+		conf := config.New()
+		conf.HTTP.Port = "0"
+
+		writerUser, _ := test.GenerateRandomString()
+		writerPass, _ := test.GenerateRandomString()
+		readerUser, _ := test.GenerateRandomString()
+		readerPass, _ := test.GenerateRandomString()
+		writerUser = strings.ToLower(writerUser)
+		readerUser = strings.ToLower(readerUser)
+
+		content := test.GetBcryptCredString(writerUser, writerPass) +
+			test.GetBcryptCredString(readerUser, readerPass)
+		htpasswdPath := test.MakeHtpasswdFileFromString(t, content)
+
+		conf.HTTP.Auth = &config.AuthConfig{
+			HTPasswd: config.AuthHTPasswd{
+				Path: htpasswdPath,
+			},
+		}
+
+		conf.HTTP.AccessControl = &config.AccessControlConfig{
+			Repositories: config.Repositories{
+				"**": config.PolicyGroup{
+					DefaultPolicy: []string{constants.ReadPermission},
+					Policies: []config.Policy{
+						{
+							Users: []string{writerUser},
+							Actions: []string{
+								constants.ReadPermission,
+								constants.CreatePermission,
+								constants.UpdatePermission,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		dir := t.TempDir()
+		ctlr := api.NewController(conf)
+		ctlr.Config.Storage.RootDirectory = dir
+		ctlr.Config.Storage.Dedupe = true
+
+		cm := test.NewControllerManager(ctlr)
+		baseURL := cm.StartAndWait()
+		defer cm.StopServer()
+
+		img := CreateImageWith().RandomLayers(1, 2).DefaultConfig().Build()
+		writerRepo := "writer/repo"
+		err := UploadImageWithBasicAuth(img, baseURL, writerRepo, "1.0", writerUser, writerPass)
+		So(err, ShouldBeNil)
+
+		blobDigest := img.Manifest.Layers[0].Digest
+		junkRepo := "reader-junk"
+
+		readerClient := resty.New()
+		readerClient.SetBasicAuth(readerUser, readerPass)
+
+		resp, err := readerClient.R().Post(baseURL + "/v2/" + junkRepo + "/blobs/uploads/")
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusForbidden)
+
+		resp, err = readerClient.R().Head(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", junkRepo, blobDigest))
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
+
+		_, err = os.Stat(filepath.Join(dir, junkRepo))
+		So(os.IsNotExist(err), ShouldBeTrue)
+
+		resp, err = readerClient.R().
+			SetHeader("Range", "bytes=0-7").
+			Get(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", junkRepo, blobDigest))
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
+
+		_, err = os.Stat(filepath.Join(dir, junkRepo))
+		So(os.IsNotExist(err), ShouldBeTrue)
+
+		// Foreign digest under a repo the reader can "read" but that does not
+		// contain the blob must not disclose content via ranged GET.
+		resp, err = readerClient.R().
+			SetHeader("Range", "bytes=0-64").
+			Get(baseURL + fmt.Sprintf("/v2/%s/blobs/%s", "other/empty", blobDigest))
+		So(err, ShouldBeNil)
+		So(resp.StatusCode(), ShouldEqual, http.StatusNotFound)
+
+		_, err = os.Stat(filepath.Join(dir, "other"))
+		So(os.IsNotExist(err), ShouldBeTrue)
 	})
 }
 

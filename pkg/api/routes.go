@@ -1022,33 +1022,33 @@ func (rh *RouteHandler) DeleteManifest(response http.ResponseWriter, request *ht
 	response.WriteHeader(http.StatusAccepted)
 }
 
-// canMount checks if a user has read permission on cached blobs with this specific digest.
-// returns true if the user have permission to copy blob from cache.
+// canMount reports whether the caller may materialize digest into destRepo from
+// the global dedupe cache. That requires create on destRepo and read on at least
+// one repository that already holds the digest. Call only when authz is enabled.
 func canMount(userAc *reqCtx.UserAccessControl, imgStore storageTypes.ImageStore, digest godigest.Digest,
+	destRepo string,
 ) (bool, error) {
-	canMount := true
+	if userAc == nil {
+		return true, nil
+	}
 
-	if userAc != nil {
-		canMount = false
+	// CheckBlob / copyBlob may initRepo and hard-link into destRepo.
+	if !userAc.Can(constants.CreatePermission, destRepo) {
+		return false, nil
+	}
 
-		repos, err := imgStore.GetAllDedupeReposCandidates(digest)
-		if err != nil {
-			return false, err
-		}
+	repos, err := imgStore.GetAllDedupeReposCandidates(digest)
+	if err != nil {
+		return false, err
+	}
 
-		if len(repos) == 0 {
-			canMount = false
-		}
-
-		// check if user can read any repo which contain this blob
-		for _, repo := range repos {
-			if userAc.Can(constants.ReadPermission, repo) {
-				canMount = true
-			}
+	for _, repo := range repos {
+		if userAc.Can(constants.ReadPermission, repo) {
+			return true, nil
 		}
 	}
 
-	return canMount, nil
+	return false, nil
 }
 
 // resolveBlobResponseMediaType resolves the OCI media type to advertise for a blob via
@@ -1124,7 +1124,7 @@ func (rh *RouteHandler) CheckBlob(response http.ResponseWriter, request *http.Re
 	accessControlConfig := rh.c.Config.CopyAccessControlConfig()
 
 	if accessControlConfig.IsAuthzEnabled() {
-		userCanMount, err = canMount(userAc, imgStore, digest)
+		userCanMount, err = canMount(userAc, imgStore, digest, name)
 		if err != nil {
 			rh.c.Log.Error().Err(err).Msg("unexpected error")
 		}
@@ -1558,8 +1558,41 @@ func (rh *RouteHandler) GetBlob(response http.ResponseWriter, request *http.Requ
 	}
 
 	if rangeHeaderPresent {
-		ctx := events.WithEventContext(request.Context(), eventContextFromRequest(request))
-		ok, bsize, err := imgStore.CheckBlob(ctx, name, digest)
+		userAc, err := reqCtx.UserAcFromContext(request.Context())
+		if err != nil {
+			response.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+
+		// Ranged GET is authorized as read, but CheckBlob may materialize from
+		// the dedupe cache. Mount only when canMount allows it; otherwise size
+		// the range against the repo-local blob.
+		userCanMount := true
+		accessControlConfig := rh.c.Config.CopyAccessControlConfig()
+
+		if accessControlConfig.IsAuthzEnabled() {
+			userCanMount, err = canMount(userAc, imgStore, digest, name)
+			if err != nil {
+				rh.c.Log.Error().Err(err).Msg("unexpected error")
+			}
+		}
+
+		var ok bool
+
+		var bsize int64
+
+		if userCanMount {
+			ctx := events.WithEventContext(request.Context(), eventContextFromRequest(request))
+			ok, bsize, err = imgStore.CheckBlob(ctx, name, digest)
+		} else {
+			var lockLatency time.Time
+
+			imgStore.RLock(&lockLatency)
+			ok, bsize, _, err = imgStore.StatBlob(name, digest)
+			imgStore.RUnlock(&lockLatency)
+		}
+
 		if err != nil {
 			writeBlobError(err)
 
@@ -1780,7 +1813,7 @@ func (rh *RouteHandler) CreateBlobUpload(response http.ResponseWriter, request *
 		accessControlConfig := rh.c.Config.CopyAccessControlConfig()
 
 		if accessControlConfig.IsAuthzEnabled() {
-			userCanMount, err = canMount(userAc, imgStore, mountDigest)
+			userCanMount, err = canMount(userAc, imgStore, mountDigest, name)
 			if err != nil {
 				rh.c.Log.Error().Err(err).Msg("unexpected error")
 			}
